@@ -5,6 +5,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import io
 from scipy.optimize import newton
+from requests.exceptions import RequestException
 
 def calculate_irr(cash_flows):
     """Calculate the Internal Rate of Return (IRR)"""
@@ -50,17 +51,29 @@ def plot_strategy(data, strategy, ticker):
     st.image(buf, use_column_width=True)
     plt.close()
 
+def fetch_data(ticker, start_date, end_date):
+    """Fetch historical data with error handling and timeout"""
+    try:
+        data = yf.download(ticker, start=start_date, end=end_date, timeout=10)
+        if data.empty:
+            st.warning(f"No data available for ticker {ticker}.")
+        return data
+    except RequestException as e:
+        st.error(f"RequestException for ticker {ticker}: {e}")
+        return pd.DataFrame()
+    except Exception as e:
+        st.error(f"An error occurred while fetching data for ticker {ticker}: {e}")
+        return pd.DataFrame()
+
 def backtest_strategy(tickers, start_date, end_date, short_window, medium_window, long_window, strategy, start_with_position):
     """Backtest trading strategies"""
     all_results = []
     for ticker in tickers:
+        data = fetch_data(ticker, start_date, end_date)
+        if data.empty:
+            continue
+        
         try:
-            # Fetch historical data
-            data = yf.download(ticker, start=start_date, end=end_date)
-            if data.empty:
-                st.error(f"No data fetched for ticker {ticker}.")
-                continue
-            
             # Calculate moving averages
             data['SMA1'] = data['Close'].rolling(window=short_window, min_periods=1).mean()
             data['SMA2'] = data['Close'].rolling(window=medium_window, min_periods=1).mean()
@@ -148,25 +161,22 @@ def main():
     medium_window = st.slider("Medium Window (days)", min_value=50, max_value=100, value=50)
     long_window = st.slider("Long Window (days)", min_value=100, max_value=200, value=100)
     
-    start_with_position = st.checkbox("Assume starting with a position bought on the start date", value=False)
+    start_with_position = st.checkbox("Assume starting with a position bought on the start date")
     
-    if st.button("Backtest"):
+    if st.button("Run Backtest"):
         if start_date < end_date:
             results = backtest_strategy(tickers, start_date, end_date, short_window, medium_window, long_window, strategy, start_with_position)
             
             if results:
-                results_df = pd.DataFrame(results)
-                st.write("Results Summary:")
-                st.write(results_df)
+                df_results = pd.DataFrame(results)
+                st.write(df_results)
                 
-                # Analysis for the best strategy
-                best_return_strategy = results_df.groupby('Strategy')['Total Return (%)'].mean().idxmax()
-                best_return = results_df.groupby('Strategy')['Total Return (%)'].mean().max()
-                best_irr_strategy = results_df.groupby('Strategy')['IRR (%)'].mean().idxmax()
-                best_irr = results_df.groupby('Strategy')['IRR (%)'].mean().max()
+                # Analysis of the best strategy
+                best_strategy = df_results.loc[df_results['Total Return (%)'].idxmax()]
+                best_irr_strategy = df_results.loc[df_results['IRR (%)'].idxmax()]
                 
-                st.write(f"Best Strategy Based on Average Total Return: {best_return_strategy} ({best_return:.2f}%)")
-                st.write(f"Best Strategy Based on Average IRR: {best_irr_strategy} ({best_irr:.2f}%)")
+                st.write(f"Best Strategy Based on Total Return: {best_strategy['Strategy']} ({best_strategy['Total Return (%)']:.2f}%)")
+                st.write(f"Best Strategy Based on IRR: {best_irr_strategy['Strategy']} ({best_irr_strategy['IRR (%)']:.2f}%)")
             else:
                 st.write("No results to display.")
         else:
