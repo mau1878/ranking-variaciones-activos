@@ -38,12 +38,19 @@ if ticker:
             df_ypf_ba = fetch_and_adjust("YPF.BA", start=start_date, end=end_date)
             df_ypf = fetch_and_adjust("YPF", start=start_date, end=end_date)
 
-            # Calculate CCL de YPF ratio
-            df['CCL de YPF'] = df_ypf_ba['Adj Close'] / df_ypf['Adj Close']
+            if not df_ypf_ba.empty and not df_ypf.empty:
+                # Calculate CCL de YPF ratio
+                df['CCL de YPF'] = df_ypf_ba['Adj Close'] / df_ypf['Adj Close']
 
-            # Adjust ticker data by dividing by CCL ratio
-            df['Adj Close'] = df['Adj Close'] / df['CCL de YPF']
+                # Avoid dividing by zero or NaN
+                df['CCL de YPF'].replace([np.inf, -np.inf], np.nan, inplace=True)
+                df.dropna(subset=['CCL de YPF'], inplace=True)
 
+                # Adjust ticker data by dividing by CCL ratio
+                df['Adj Close'] = df['Adj Close'] / df['CCL de YPF']
+            else:
+                st.warning("Data for YPF.BA or YPF is missing. CCL de YPF ratio could not be applied.")
+        
         # Resample data based on selected frequency
         if frequency == "Daily":
             df_resampled = df
@@ -80,15 +87,17 @@ if ticker:
             """, unsafe_allow_html=True)
 
         # Display tables
-        st.subheader(f"Top 30 Positive Price Variations for {ticker} ({frequency})")
-        st.write(top_positive[['Price Variation (%)', 'Next Day Variation (%)']]
-                 .style.applymap(color_variation)
-                 .set_table_styles([{'selector': '', 'props': [('width', f'{table_width}px')]}]), unsafe_allow_html=True)
+        if not top_positive.empty:
+            st.subheader(f"Top 30 Positive Price Variations for {ticker} ({frequency})")
+            st.write(top_positive[['Price Variation (%)', 'Next Day Variation (%)']]
+                     .style.applymap(color_variation)
+                     .set_table_styles([{'selector': '', 'props': [('width', f'{table_width}px')]}]), unsafe_allow_html=True)
 
-        st.subheader(f"Top 30 Negative Price Variations for {ticker} ({frequency})")
-        st.write(top_negative[['Price Variation (%)', 'Next Day Variation (%)']]
-                 .style.applymap(color_variation)
-                 .set_table_styles([{'selector': '', 'props': [('width', f'{table_width}px')]}]), unsafe_allow_html=True)
+        if not top_negative.empty:
+            st.subheader(f"Top 30 Negative Price Variations for {ticker} ({frequency})")
+            st.write(top_negative[['Price Variation (%)', 'Next Day Variation (%)']]
+                     .style.applymap(color_variation)
+                     .set_table_styles([{'selector': '', 'props': [('width', f'{table_width}px')]}]), unsafe_allow_html=True)
 
     else:
         st.error("No data found for the specified ticker and date range.")
