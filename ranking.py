@@ -3,74 +3,93 @@ import pandas as pd
 import numpy as np
 import yfinance as yf
 import matplotlib.pyplot as plt
+import matplotlib.dates as mdates
 
-def backtest_strategy(ticker, start_date, end_date, short_window, medium_window, long_window, strategy):
-    try:
-        # Fetch historical data
-        data = yf.download(ticker, start=start_date, end=end_date)
-        if data.empty:
-            st.error("No data fetched for the given ticker.")
-            return
+def backtest_strategy(tickers, start_date, end_date, short_window, medium_window, long_window, strategy):
+    all_results = []
+    for ticker in tickers:
+        try:
+            # Fetch historical data
+            data = yf.download(ticker, start=start_date, end=end_date)
+            if data.empty:
+                st.error(f"No data fetched for ticker {ticker}.")
+                continue
+            
+            # Calculate moving averages
+            data['SMA1'] = data['Close'].rolling(window=short_window, min_periods=1).mean()
+            data['SMA2'] = data['Close'].rolling(window=medium_window, min_periods=1).mean()
+            data['SMA3'] = data['Close'].rolling(window=long_window, min_periods=1).mean()
+            
+            # Generate signals based on selected strategy
+            if strategy == 'Cross between price and SMA 1':
+                data['Signal'] = 0
+                data['Signal'][short_window:] = np.where(data['Close'][short_window:] > data['SMA1'][short_window:], 1, 0)
+                data['Position'] = data['Signal'].diff()
+            elif strategy == 'Cross between SMA 1 and SMA 2':
+                data['Signal'] = 0
+                data['Signal'][medium_window:] = np.where(data['SMA1'][medium_window:] > data['SMA2'][medium_window:], 1, 0)
+                data['Position'] = data['Signal'].diff()
+            elif strategy == 'Cross between SMAs 1, 2 and 3':
+                data['Signal'] = 0
+                # Create alignment conditions
+                bullish_alignment = (data['SMA1'] > data['SMA2']) & (data['SMA2'] > data['SMA3'])
+                bearish_alignment = (data['SMA1'] < data['SMA2']) & (data['SMA2'] < data['SMA3'])
+                data['Signal'] = np.where(bullish_alignment, 1, 0)
+                data['Signal'] = np.where(bearish_alignment, -1, data['Signal'])
+                data['Position'] = data['Signal'].diff()
+            
+            # Calculate returns
+            data['Return'] = data['Close'].pct_change().shift(-1) * data['Position']
+            total_return = data['Return'].sum()
+            
+            # Plot data and signals
+            plt.figure(figsize=(12,8))
+            plt.plot(data['Close'], label='Close Price', alpha=0.5)
+            plt.plot(data['SMA1'], label=f'SMA {short_window}-day', alpha=0.75)
+            plt.plot(data['SMA2'], label=f'SMA {medium_window}-day', alpha=0.75)
+            if long_window:
+                plt.plot(data['SMA3'], label=f'SMA {long_window}-day', alpha=0.75)
+            
+            if strategy == 'Cross between price and SMA 1':
+                plt.plot(data[data['Position'] == 1].index, data['SMA1'][data['Position'] == 1], '^', markersize=10, color='g', label='Buy Signal')
+                plt.plot(data[data['Position'] == -1].index, data['SMA1'][data['Position'] == -1], 'v', markersize=10, color='r', label='Sell Signal')
+            elif strategy == 'Cross between SMA 1 and SMA 2':
+                plt.plot(data[data['Position'] == 1].index, data['SMA1'][data['Position'] == 1], '^', markersize=10, color='g', label='Buy Signal')
+                plt.plot(data[data['Position'] == -1].index, data['SMA1'][data['Position'] == -1], 'v', markersize=10, color='r', label='Sell Signal')
+            elif strategy == 'Cross between SMAs 1, 2 and 3':
+                plt.plot(data[data['Position'] == 1].index, data['SMA1'][data['Position'] == 1], '^', markersize=10, color='g', label='Buy Signal')
+                plt.plot(data[data['Position'] == -1].index, data['SMA1'][data['Position'] == -1], 'v', markersize=10, color='r', label='Sell Signal')
+            
+            plt.title(f'{ticker} Trading Strategy Backtest')
+            plt.xlabel('Date')
+            plt.ylabel('Price')
+            plt.legend(loc='best')
+            plt.grid(True)
+            st.pyplot(plt)  # Use Streamlit to display the plot
+            plt.close()  # Close the plot to free memory
+            
+            # Append result for this ticker
+            all_results.append({
+                'Ticker': ticker,
+                'Total Return (%)': total_return * 100
+            })
         
-        # Calculate moving averages
-        data['SMA1'] = data['Close'].rolling(window=short_window, min_periods=1).mean()
-        data['SMA2'] = data['Close'].rolling(window=medium_window, min_periods=1).mean()
-        data['SMA3'] = data['Close'].rolling(window=long_window, min_periods=1).mean()
-        
-        # Generate signals based on selected strategy
-        if strategy == 'Cross between price and SMA 1':
-            data['Signal'] = 0
-            data['Signal'][short_window:] = np.where(data['Close'][short_window:] > data['SMA1'][short_window:], 1, 0)
-            data['Position'] = data['Signal'].diff()
-        
-        elif strategy == 'Cross between SMA 1 and SMA 2':
-            data['Signal'] = 0
-            data['Signal'][medium_window:] = np.where(data['SMA1'][medium_window:] > data['SMA2'][medium_window:], 1, 0)
-            data['Position'] = data['Signal'].diff()
-        
-        elif strategy == 'Cross between SMAs 1, 2 and 3':
-            data['Signal'] = 0
-            # Create alignment conditions
-            bullish_alignment = (data['SMA1'] > data['SMA2']) & (data['SMA2'] > data['SMA3'])
-            bearish_alignment = (data['SMA1'] < data['SMA2']) & (data['SMA2'] < data['SMA3'])
-            data['Signal'] = np.where(bullish_alignment, 1, 0)
-            data['Signal'] = np.where(bearish_alignment, -1, data['Signal'])
-            data['Position'] = data['Signal'].diff()
-        
-        # Plot data and signals
-        plt.figure(figsize=(12,8))
-        plt.plot(data['Close'], label='Close Price', alpha=0.5)
-        plt.plot(data['SMA1'], label=f'SMA {short_window}-day', alpha=0.75)
-        plt.plot(data['SMA2'], label=f'SMA {medium_window}-day', alpha=0.75)
-        if long_window:
-            plt.plot(data['SMA3'], label=f'SMA {long_window}-day', alpha=0.75)
-        
-        if strategy == 'Cross between price and SMA 1':
-            plt.plot(data[data['Position'] == 1].index, data['SMA1'][data['Position'] == 1], '^', markersize=10, color='g', label='Buy Signal')
-            plt.plot(data[data['Position'] == -1].index, data['SMA1'][data['Position'] == -1], 'v', markersize=10, color='r', label='Sell Signal')
-        elif strategy == 'Cross between SMA 1 and SMA 2':
-            plt.plot(data[data['Position'] == 1].index, data['SMA1'][data['Position'] == 1], '^', markersize=10, color='g', label='Buy Signal')
-            plt.plot(data[data['Position'] == -1].index, data['SMA1'][data['Position'] == -1], 'v', markersize=10, color='r', label='Sell Signal')
-        elif strategy == 'Cross between SMAs 1, 2 and 3':
-            plt.plot(data[data['Position'] == 1].index, data['SMA1'][data['Position'] == 1], '^', markersize=10, color='g', label='Buy Signal')
-            plt.plot(data[data['Position'] == -1].index, data['SMA1'][data['Position'] == -1], 'v', markersize=10, color='r', label='Sell Signal')
-        
-        plt.title(f'{ticker} Trading Strategy Backtest')
-        plt.xlabel('Date')
-        plt.ylabel('Price')
-        plt.legend(loc='best')
-        plt.grid(True)
-        st.pyplot(plt)  # Use Streamlit to display the plot
-        plt.close()  # Close the plot to free memory
-    except Exception as e:
-        st.error(f"An error occurred: {e}")
+        except Exception as e:
+            st.error(f"An error occurred for ticker {ticker}: {e}")
+    
+    # Display results as a table
+    if all_results:
+        results_df = pd.DataFrame(all_results)
+        st.write("Return Calculations for Executed Signals:")
+        st.dataframe(results_df)
 
 # Streamlit app
 def main():
     st.title("Trading Strategy Backtest")
 
     # User inputs
-    ticker = st.text_input("Enter Stock Ticker (e.g., AAPL):", "AAPL").upper()
+    tickers = st.text_input("Enter Stock Tickers (separated by commas, e.g., AAPL, MSFT):", "AAPL, MSFT").upper().split(',')
+    tickers = [ticker.strip() for ticker in tickers]
     start_date = st.date_input("Start Date", pd.to_datetime('2022-01-01'))
     end_date = st.date_input("End Date", pd.to_datetime('2023-01-01'))
     
@@ -86,7 +105,7 @@ def main():
 
     if st.button("Run Backtest"):
         if start_date < end_date:
-            backtest_strategy(ticker, start_date, end_date, short_window, medium_window, long_window, strategy)
+            backtest_strategy(tickers, start_date, end_date, short_window, medium_window, long_window, strategy)
         else:
             st.error("End date must be after start date.")
 
