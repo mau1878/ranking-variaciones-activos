@@ -6,11 +6,12 @@ import matplotlib.pyplot as plt
 from datetime import datetime
 
 def calculate_annualized_return(total_return, days):
-    # Convert total return percentage to a decimal for calculation
     total_return_decimal = total_return / 100
-    # Annualize the return
     annualized_return = (1 + total_return_decimal) ** (365 / days) - 1
-    return annualized_return * 100  # Convert back to percentage
+    return annualized_return * 100
+
+def calculate_buy_and_hold_return(start_price, end_price):
+    return (end_price - start_price) / start_price * 100
 
 def backtest_strategy(tickers, start_date, end_date, short_window, medium_window, long_window, strategy, start_with_position):
     all_results = []
@@ -27,6 +28,11 @@ def backtest_strategy(tickers, start_date, end_date, short_window, medium_window
             data['SMA1'] = data['Close'].rolling(window=short_window, min_periods=1).mean()
             data['SMA2'] = data['Close'].rolling(window=medium_window, min_periods=1).mean()
             data['SMA3'] = data['Close'].rolling(window=long_window, min_periods=1).mean()
+            
+            # Buy-and-Hold Return
+            start_price = data['Close'].iloc[0]
+            end_price = data['Close'].iloc[-1]
+            buy_and_hold_return = calculate_buy_and_hold_return(start_price, end_price)
             
             # Generate signals based on selected strategy
             if strategy == 'Cross between price and SMA 1':
@@ -109,7 +115,8 @@ def backtest_strategy(tickers, start_date, end_date, short_window, medium_window
                 'Ticker': ticker,
                 'Strategy': strategy,
                 'Total Return (%)': total_return * 100,
-                'Annualized Return (%)': annualized_return
+                'Annualized Return (%)': annualized_return,
+                'Buy-and-Hold Return (%)': buy_and_hold_return
             })
         
         except Exception as e:
@@ -146,7 +153,7 @@ def main():
                 results = backtest_strategy(tickers, start_date, end_date, short_window, medium_window, long_window, strategy, start_with_position)
                 all_results.extend(results)
             
-            # Display results as a DataFrame
+            # Convert results to DataFrame
             results_df = pd.DataFrame(all_results)
             st.write(results_df)
         else:
