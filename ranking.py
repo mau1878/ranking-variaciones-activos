@@ -1,24 +1,57 @@
 import streamlit as st
+import yfinance as yf
 import pandas as pd
 import numpy as np
-import yfinance as yf
 import matplotlib.pyplot as plt
-from datetime import datetime
+import io
 from scipy.optimize import newton
 
 def calculate_irr(cash_flows):
-    """Calculate Internal Rate of Return (IRR)."""
-    def npv(irr, cash_flows):
-        return sum(cash_flow / (1 + irr)**i for i, cash_flow in enumerate(cash_flows))
-
+    """Calculate the Internal Rate of Return (IRR)"""
+    def npv(irr):
+        return np.sum(np.array(cash_flows) / (1 + irr) ** np.arange(len(cash_flows)))
+    
     try:
-        irr = newton(lambda r: npv(r, cash_flows), 0.1)  # Use a guess value for IRR
-        return irr * 100  # Convert to percentage
+        irr = newton(npv, 0.1)
+        return irr * 100  # Return IRR as percentage
     except Exception as e:
         st.error(f"Error calculating IRR: {e}")
         return None
 
+def plot_strategy(data, strategy, ticker):
+    """Plot the strategy results"""
+    plt.figure(figsize=(12, 8))
+    plt.plot(data['Close'], label='Close Price', alpha=0.5)
+    plt.plot(data['SMA1'], label=f'SMA {short_window}-day', alpha=0.75)
+    plt.plot(data['SMA2'], label=f'SMA {medium_window}-day', alpha=0.75)
+    if long_window:
+        plt.plot(data['SMA3'], label=f'SMA {long_window}-day', alpha=0.75)
+
+    if strategy == 'Cross between price and SMA 1':
+        plt.plot(data[data['Position'] == 1].index, data['SMA1'][data['Position'] == 1], '^', markersize=10, color='g', label='Buy Signal')
+        plt.plot(data[data['Position'] == -1].index, data['SMA1'][data['Position'] == -1], 'v', markersize=10, color='r', label='Sell Signal')
+    elif strategy == 'Cross between SMA 1 and SMA 2':
+        plt.plot(data[data['Position'] == 1].index, data['SMA1'][data['Position'] == 1], '^', markersize=10, color='g', label='Buy Signal')
+        plt.plot(data[data['Position'] == -1].index, data['SMA1'][data['Position'] == -1], 'v', markersize=10, color='r', label='Sell Signal')
+    elif strategy == 'Cross between SMAs 1, 2 and 3':
+        plt.plot(data[data['Position'] == 1].index, data['SMA1'][data['Position'] == 1], '^', markersize=10, color='g', label='Buy Signal')
+        plt.plot(data[data['Position'] == -1].index, data['SMA1'][data['Position'] == -1], 'v', markersize=10, color='r', label='Sell Signal')
+
+    plt.title(f'{ticker} Trading Strategy Backtest')
+    plt.xlabel('Date')
+    plt.ylabel('Price')
+    plt.legend(loc='best')
+    plt.grid(True)
+
+    # Save plot to a BytesIO object
+    buf = io.BytesIO()
+    plt.savefig(buf, format='png')
+    buf.seek(0)
+    st.image(buf, use_column_width=True)
+    plt.close()
+
 def backtest_strategy(tickers, start_date, end_date, short_window, medium_window, long_window, strategy, start_with_position):
+    """Backtest trading strategies"""
     all_results = []
     for ticker in tickers:
         try:
@@ -82,30 +115,7 @@ def backtest_strategy(tickers, start_date, end_date, short_window, medium_window
             irr = calculate_irr(cash_flows)
             
             # Plot data and signals
-            plt.figure(figsize=(12,8))
-            plt.plot(data['Close'], label='Close Price', alpha=0.5)
-            plt.plot(data['SMA1'], label=f'SMA {short_window}-day', alpha=0.75)
-            plt.plot(data['SMA2'], label=f'SMA {medium_window}-day', alpha=0.75)
-            if long_window:
-                plt.plot(data['SMA3'], label=f'SMA {long_window}-day', alpha=0.75)
-            
-            if strategy == 'Cross between price and SMA 1':
-                plt.plot(data[data['Position'] == 1].index, data['SMA1'][data['Position'] == 1], '^', markersize=10, color='g', label='Buy Signal')
-                plt.plot(data[data['Position'] == -1].index, data['SMA1'][data['Position'] == -1], 'v', markersize=10, color='r', label='Sell Signal')
-            elif strategy == 'Cross between SMA 1 and SMA 2':
-                plt.plot(data[data['Position'] == 1].index, data['SMA1'][data['Position'] == 1], '^', markersize=10, color='g', label='Buy Signal')
-                plt.plot(data[data['Position'] == -1].index, data['SMA1'][data['Position'] == -1], 'v', markersize=10, color='r', label='Sell Signal')
-            elif strategy == 'Cross between SMAs 1, 2 and 3':
-                plt.plot(data[data['Position'] == 1].index, data['SMA1'][data['Position'] == 1], '^', markersize=10, color='g', label='Buy Signal')
-                plt.plot(data[data['Position'] == -1].index, data['SMA1'][data['Position'] == -1], 'v', markersize=10, color='r', label='Sell Signal')
-            
-            plt.title(f'{ticker} Trading Strategy Backtest')
-            plt.xlabel('Date')
-            plt.ylabel('Price')
-            plt.legend(loc='best')
-            plt.grid(True)
-            st.pyplot(plt)  # Use Streamlit to display the plot
-            plt.close()  # Close the plot to free memory
+            plot_strategy(data, strategy, ticker)
             
             # Append result for this ticker and strategy
             all_results.append({
@@ -120,51 +130,47 @@ def backtest_strategy(tickers, start_date, end_date, short_window, medium_window
     
     return all_results
 
-# Streamlit app
 def main():
-    st.title("Trading Strategy Backtest")
-
-    # User inputs
-    tickers = st.text_input("Enter Stock Tickers (separated by commas, e.g., AAPL, MSFT):", "AAPL, MSFT").upper().split(',')
-    tickers = [ticker.strip() for ticker in tickers]
-    start_date = st.date_input("Start Date", pd.to_datetime('2022-01-01'))
-    end_date = st.date_input("End Date", pd.to_datetime(datetime.today()))  # Default end date to today
+    st.title("Trading Strategy Backtesting")
     
-    short_window = st.slider("Short Window (days)", min_value=1, max_value=100, value=40)
-    medium_window = st.slider("Medium Window (days)", min_value=1, max_value=100, value=100)
-    long_window = st.slider("Long Window (days)", min_value=1, max_value=200, value=200)
+    tickers = st.text_input("Enter ticker symbols separated by commas (e.g., AAPL,MSFT)").upper().split(',')
+    start_date = st.date_input("Start Date", value=pd.to_datetime('2023-01-01'))
+    end_date = st.date_input("End Date", value=pd.to_datetime('today'))
+    
+    strategies = [
+        'Cross between price and SMA 1',
+        'Cross between SMA 1 and SMA 2',
+        'Cross between SMAs 1, 2 and 3'
+    ]
+    strategy = st.selectbox("Select Strategy", strategies)
+    
+    short_window = st.slider("Short Window (days)", min_value=5, max_value=50, value=20)
+    medium_window = st.slider("Medium Window (days)", min_value=50, max_value=100, value=50)
+    long_window = st.slider("Long Window (days)", min_value=100, max_value=200, value=100)
     
     start_with_position = st.checkbox("Assume starting with a position bought on the start date", value=False)
-
-    if st.button("Run Backtest"):
+    
+    if st.button("Backtest"):
         if start_date < end_date:
-            strategies = [
-                'Cross between price and SMA 1',
-                'Cross between SMA 1 and SMA 2',
-                'Cross between SMAs 1, 2 and 3'
-            ]
+            results = backtest_strategy(tickers, start_date, end_date, short_window, medium_window, long_window, strategy, start_with_position)
             
-            all_results = []
-            for strategy in strategies:
-                results = backtest_strategy(tickers, start_date, end_date, short_window, medium_window, long_window, strategy, start_with_position)
-                all_results.extend(results)
-            
-            # Display results as a table
-            if all_results:
-                results_df = pd.DataFrame(all_results)
-                st.write("Return Calculations for Executed Signals:")
-                st.dataframe(results_df)
+            if results:
+                results_df = pd.DataFrame(results)
+                st.write("Results Summary:")
+                st.write(results_df)
                 
-                # Analysis of best strategy
-                best_strategy = results_df.groupby('Strategy')['Total Return (%)'].mean().idxmax()
+                # Analysis for the best strategy
+                best_return_strategy = results_df.groupby('Strategy')['Total Return (%)'].mean().idxmax()
                 best_return = results_df.groupby('Strategy')['Total Return (%)'].mean().max()
                 best_irr_strategy = results_df.groupby('Strategy')['IRR (%)'].mean().idxmax()
                 best_irr = results_df.groupby('Strategy')['IRR (%)'].mean().max()
                 
-                st.write(f"Best Strategy Based on Average Total Return: {best_strategy} ({best_return:.2f}%)")
+                st.write(f"Best Strategy Based on Average Total Return: {best_return_strategy} ({best_return:.2f}%)")
                 st.write(f"Best Strategy Based on Average IRR: {best_irr_strategy} ({best_irr:.2f}%)")
+            else:
+                st.write("No results to display.")
         else:
-            st.error("Start date must be before end date.")
+            st.error("End date must be later than start date.")
 
 if __name__ == "__main__":
     main()
