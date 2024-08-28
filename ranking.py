@@ -22,13 +22,19 @@ def backtest_strategy(ticker, start_date, end_date, short_window, medium_window,
             data['Signal'] = 0
             data['Signal'][short_window:] = np.where(data['Close'][short_window:] > data['SMA1'][short_window:], 1, 0)
             data['Position'] = data['Signal'].diff()
+        
         elif strategy == 'Cross between SMA 1 and SMA 2':
             data['Signal'] = 0
             data['Signal'][medium_window:] = np.where(data['SMA1'][medium_window:] > data['SMA2'][medium_window:], 1, 0)
             data['Position'] = data['Signal'].diff()
+        
         elif strategy == 'Cross between SMAs 1, 2 and 3':
             data['Signal'] = 0
-            data['Signal'] = np.where((data['SMA1'] > data['SMA2']) & (data['SMA2'] > data['SMA3']), 1, 0)
+            # Create alignment conditions
+            bullish_alignment = (data['SMA1'] > data['SMA2']) & (data['SMA2'] > data['SMA3'])
+            bearish_alignment = (data['SMA1'] < data['SMA2']) & (data['SMA2'] < data['SMA3'])
+            data['Signal'] = np.where(bullish_alignment, 1, 0)
+            data['Signal'] = np.where(bearish_alignment, -1, data['Signal'])
             data['Position'] = data['Signal'].diff()
         
         # Plot data and signals
