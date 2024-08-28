@@ -19,62 +19,71 @@ frequency = st.selectbox("Select frequency:", ["Daily", "Weekly", "Monthly"])
 font_size = st.slider("Select font size for the table:", min_value=10, max_value=30, value=14)
 table_width = st.slider("Select table width (in pixels):", min_value=400, max_value=1200, value=800)
 
-# Checkbox to apply CCL de YPF
+# Option to apply ratio
 apply_ccl = st.checkbox("Aplicar CCL de YPF")
 
-def fetch_and_adjust(ticker, start, end):
-    data = yf.download(ticker, start=start, end=end)
-    # Forward-fill to handle missing values
-    data.ffill(inplace=True)
-    return data
+# Function to fetch and handle missing data
+def fetch_data_with_previous(ticker, start_date, end_date):
+    df = yf.download(ticker, start=start_date, end=end_date)
+    if df.empty:
+        return df
 
-def fetch_ypf_data(ticker_ypf_ba, ticker_ypf, start, end):
-    df_ypf_ba = fetch_and_adjust(ticker_ypf_ba, start=start, end=end)
-    df_ypf = fetch_and_adjust(ticker_ypf, start=start, end=end)
+    # Forward fill missing data
+    df = df.ffill()
+    return df
 
-    # Backward-fill if the first values are missing
-    df_ypf_ba.bfill(inplace=True)
-    df_ypf.bfill(inplace=True)
-
-    return df_ypf_ba, df_ypf
-
-# Fetch data
+# Fetch and adjust data for the main ticker
 if ticker:
-    df = fetch_and_adjust(ticker, start=start_date, end=end_date)
+    df_ticker = fetch_data_with_previous(ticker, start_date, end_date)
 
-    if not df.empty:
-        if apply_ccl:
-            # Fetch YPF.BA and YPF data and adjust
-            df_ypf_ba, df_ypf = fetch_ypf_data("YPF.BA", "YPF", start_date, end_date)
-
-            if not df_ypf_ba.empty and not df_ypf.empty:
-                # Calculate CCL de YPF ratio
-                df['CCL de YPF'] = df_ypf_ba['Adj Close'] / df_ypf['Adj Close']
-
-                # Avoid dividing by zero or NaN
-                df['CCL de YPF'].replace([np.inf, -np.inf], np.nan, inplace=True)
-                df.dropna(subset=['CCL de YPF'], inplace=True)
-
-                # Adjust ticker data by dividing by CCL ratio
-                df['Adj Close'] = df['Adj Close'] / df['CCL de YPF']
-            else:
-                st.warning("Data for YPF.BA or YPF is missing. CCL de YPF ratio could not be applied.")
-        
-        # Resample data based on selected frequency
+    if not df_ticker.empty:
+        # Handle frequency
         if frequency == "Daily":
-            df_resampled = df
+            df_resampled = df_ticker
         elif frequency == "Weekly":
-            df_resampled = df.resample('W').last()
+            df_resampled = df_ticker.resample('W').last()
         elif frequency == "Monthly":
-            df_resampled = df.resample('M').last()
+            df_resampled = df_ticker.resample('M').last()
 
-        # Calculate price variations with two decimal points
-        df_resampled['Price Variation (%)'] = (df_resampled['Adj Close'].pct_change() * 100).round(2)
-        df_resampled['Next Day Variation (%)'] = df_resampled['Price Variation (%)'].shift(-1).round(2)
+        # Calculate price variations
+        df_resampled['Price Variation (%)'] = df_resampled['Adj Close'].pct_change() * 100
+        df_resampled['Next Day Variation (%)'] = df_resampled['Price Variation (%)'].shift(-1)
         df_resampled.dropna(inplace=True)
 
         # Format date to remove hour
         df_resampled.index = df_resampled.index.strftime('%Y-%m-%d')
+
+        # Apply CCL ratio if checked
+        if apply_ccl:
+            df_ypfd = fetch_data_with_previous('YPFD.BA', start_date, end_date)
+            df_ypf = fetch_data_with_previous('YPF', start_date, end_date)
+            
+            if not df_ypfd.empty and not df_ypf.empty:
+                # Handle frequency for ratio tickers
+                if frequency == "Daily":
+                    df_ypfd_resampled = df_ypfd
+                    df_ypf_resampled = df_ypf
+                elif frequency == "Weekly":
+                    df_ypfd_resampled = df_ypfd.resample('W').last()
+                    df_ypf_resampled = df_ypf.resample('W').last()
+                elif frequency == "Monthly":
+                    df_ypfd_resampled = df_ypfd.resample('M').last()
+                    df_ypf_resampled = df_ypf.resample('M').last()
+
+                # Create the ratio dataframe
+                df_ratio = df_ypfd_resampled['Adj Close'] / df_ypf_resampled['Adj Close']
+                df_ratio = df_ratio.ffill()  # Forward fill any missing data
+                
+                # Apply ratio to the main ticker
+                df_resampled['Adjusted Close'] = df_resampled['Adj Close'] / df_ratio
+                df_resampled['Price Variation (%)'] = df_resampled['Adjusted Close'].pct_change() * 100
+                df_resampled['Next Day Variation (%)'] = df_resampled['Price Variation (%)'].shift(-1)
+                df_resampled.dropna(inplace=True)
+            else:
+                st.warning("No data available for 'YPFD.BA' or 'YPF'.")
+        
+        # Limit decimal places
+        df_resampled = df_resampled.round(2)
 
         # Get top 30 most positive and negative variations
         top_positive = df_resampled.nlargest(30, 'Price Variation (%)')
@@ -96,17 +105,17 @@ if ticker:
             """, unsafe_allow_html=True)
 
         # Display tables
-        if not top_positive.empty:
-            st.subheader(f"Top 30 Positive Price Variations for {ticker} ({frequency})")
-            st.write(top_positive[['Price Variation (%)', 'Next Day Variation (%)']]
-                     .style.applymap(color_variation)
-                     .set_table_styles([{'selector': '', 'props': [('width', f'{table_width}px')]}]), unsafe_allow_html=True)
+        st.subheader(f"Top 30 Positive Price Variations for {ticker} ({frequency})")
+        st.write(top_positive[['Price Variation (%)', 'Next Day Variation (%)']]
+                 .style.applymap(color_variation)
+                 .set_properties(**{'font-size': f'{font_size}px'})
+                 .set_table_styles([{'selector': '', 'props': [('width', f'{table_width}px')]}]), unsafe_allow_html=True)
 
-        if not top_negative.empty:
-            st.subheader(f"Top 30 Negative Price Variations for {ticker} ({frequency})")
-            st.write(top_negative[['Price Variation (%)', 'Next Day Variation (%)']]
-                     .style.applymap(color_variation)
-                     .set_table_styles([{'selector': '', 'props': [('width', f'{table_width}px')]}]), unsafe_allow_html=True)
+        st.subheader(f"Top 30 Negative Price Variations for {ticker} ({frequency})")
+        st.write(top_negative[['Price Variation (%)', 'Next Day Variation (%)']]
+                 .style.applymap(color_variation)
+                 .set_properties(**{'font-size': f'{font_size}px'})
+                 .set_table_styles([{'selector': '', 'props': [('width', f'{table_width}px')]}]), unsafe_allow_html=True)
 
     else:
         st.error("No data found for the specified ticker and date range.")
