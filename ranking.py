@@ -4,11 +4,15 @@ import numpy as np
 import yfinance as yf
 import matplotlib.pyplot as plt
 from datetime import datetime
+from scipy.optimize import newton
 
 def calculate_irr(cash_flows):
     """Calculate Internal Rate of Return (IRR)."""
+    def npv(irr, cash_flows):
+        return sum(cash_flow / (1 + irr)**i for i, cash_flow in enumerate(cash_flows))
+
     try:
-        irr = np.irr(cash_flows)
+        irr = newton(lambda r: npv(r, cash_flows), 0.1)  # Use a guess value for IRR
         return irr * 100  # Convert to percentage
     except Exception as e:
         st.error(f"Error calculating IRR: {e}")
