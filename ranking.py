@@ -25,6 +25,7 @@ apply_ccl = st.checkbox("Aplicar CCL de YPF")
 def fetch_data_with_previous(ticker, start_date, end_date):
     df = yf.download(ticker, start=start_date, end=end_date)
     if df.empty:
+        st.warning(f"No data available for ticker {ticker}.")
         return df
     df = df.ffill()  # Forward fill missing values
     return df
@@ -32,12 +33,12 @@ def fetch_data_with_previous(ticker, start_date, end_date):
 # Fetch and adjust data for the main ticker
 if ticker:
     df_ticker = fetch_data_with_previous(ticker, start_date, end_date)
-    df_ticker.index.name = 'Date'
+    if df_ticker.empty:
+        st.error("No data found for the specified ticker and date range.")
+    else:
+        st.write("Main Ticker Data (First 5 rows):")
+        st.write(df_ticker.head())  # Debugging: Show the main ticker data
 
-    st.write("Main Ticker Data:")
-    st.write(df_ticker.head())  # Debugging: Show the main ticker data
-
-    if not df_ticker.empty:
         # Handle frequency
         if frequency == "Daily":
             df_resampled = df_ticker
@@ -58,10 +59,10 @@ if ticker:
             df_ypfd = fetch_data_with_previous('YPFD.BA', start_date, end_date)
             df_ypf = fetch_data_with_previous('YPF', start_date, end_date)
 
-            st.write("YPFD.BA Data:")
+            st.write("YPFD.BA Data (First 5 rows):")
             st.write(df_ypfd.head())  # Debugging: Show YPFD.BA data
 
-            st.write("YPF Data:")
+            st.write("YPF Data (First 5 rows):")
             st.write(df_ypf.head())  # Debugging: Show YPF data
 
             if not df_ypfd.empty and not df_ypf.empty:
@@ -80,7 +81,7 @@ if ticker:
                 df_merged = pd.merge(df_resampled, df_ypfd_resampled[['Adj Close']], left_index=True, right_index=True, suffixes=('', '_YPFD'))
                 df_merged = pd.merge(df_merged, df_ypf_resampled[['Adj Close']], left_index=True, right_index=True, suffixes=('', '_YPF'))
 
-                st.write("Merged Data:")
+                st.write("Merged Data (First 5 rows):")
                 st.write(df_merged.head())  # Debugging: Show merged data
 
                 # Forward fill missing values for ratio
@@ -140,7 +141,5 @@ if ticker:
                  .set_properties(**{'font-size': f'{font_size}px'})
                  .set_table_styles([{'selector': '', 'props': [('width', f'{table_width}px')]}]), unsafe_allow_html=True)
 
-    else:
-        st.error("No data found for the specified ticker and date range.")
 else:
     st.warning("Please enter a ticker symbol.")
