@@ -3,9 +3,9 @@ import pandas as pd
 import numpy as np
 import yfinance as yf
 import matplotlib.pyplot as plt
-import matplotlib.dates as mdates
+from datetime import datetime
 
-def backtest_strategy(tickers, start_date, end_date, short_window, medium_window, long_window, strategy):
+def backtest_strategy(tickers, start_date, end_date, short_window, medium_window, long_window, strategy, start_with_position):
     all_results = []
     for ticker in tickers:
         try:
@@ -40,8 +40,8 @@ def backtest_strategy(tickers, start_date, end_date, short_window, medium_window
             
             # Initialize variables for trade tracking
             trades = []
-            current_position = 0
-            entry_price = 0
+            current_position = 1 if start_with_position else 0
+            entry_price = data['Close'].iloc[0] if start_with_position else 0
             
             # Track trades based on signals
             for i in range(1, len(data)):
@@ -53,6 +53,12 @@ def backtest_strategy(tickers, start_date, end_date, short_window, medium_window
                     trade_return = (exit_price - entry_price) / entry_price
                     trades.append(trade_return)
                     current_position = 0
+            
+            # Handle remaining position
+            if current_position == 1:
+                final_price = data['Close'].iloc[-1]
+                trade_return = (final_price - entry_price) / entry_price
+                trades.append(trade_return)
             
             # Calculate total return from all trades
             total_return = sum(trades)
@@ -106,7 +112,7 @@ def main():
     tickers = st.text_input("Enter Stock Tickers (separated by commas, e.g., AAPL, MSFT):", "AAPL, MSFT").upper().split(',')
     tickers = [ticker.strip() for ticker in tickers]
     start_date = st.date_input("Start Date", pd.to_datetime('2022-01-01'))
-    end_date = st.date_input("End Date", pd.to_datetime('2023-01-01'))
+    end_date = st.date_input("End Date", pd.to_datetime(datetime.today()))  # Default end date to today
     
     short_window = st.slider("Short Window (days)", min_value=1, max_value=100, value=40)
     medium_window = st.slider("Medium Window (days)", min_value=1, max_value=100, value=100)
@@ -117,10 +123,12 @@ def main():
         'Cross between SMA 1 and SMA 2',
         'Cross between SMAs 1, 2 and 3'
     ])
+    
+    start_with_position = st.checkbox("Assume starting with a position bought on the start date", value=False)
 
     if st.button("Run Backtest"):
         if start_date < end_date:
-            backtest_strategy(tickers, start_date, end_date, short_window, medium_window, long_window, strategy)
+            backtest_strategy(tickers, start_date, end_date, short_window, medium_window, long_window, strategy, start_with_position)
         else:
             st.error("End date must be after start date.")
 
