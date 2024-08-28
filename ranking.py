@@ -28,6 +28,16 @@ def fetch_and_adjust(ticker, start, end):
     data.ffill(inplace=True)
     return data
 
+def fetch_ypf_data(ticker_ypf_ba, ticker_ypf, start, end):
+    df_ypf_ba = fetch_and_adjust(ticker_ypf_ba, start=start, end=end)
+    df_ypf = fetch_and_adjust(ticker_ypf, start=start, end=end)
+
+    # Backward-fill if the first values are missing
+    df_ypf_ba.bfill(inplace=True)
+    df_ypf.bfill(inplace=True)
+
+    return df_ypf_ba, df_ypf
+
 # Fetch data
 if ticker:
     df = fetch_and_adjust(ticker, start=start_date, end=end_date)
@@ -35,8 +45,7 @@ if ticker:
     if not df.empty:
         if apply_ccl:
             # Fetch YPF.BA and YPF data and adjust
-            df_ypf_ba = fetch_and_adjust("YPF.BA", start=start_date, end=end_date)
-            df_ypf = fetch_and_adjust("YPF", start=start_date, end=end_date)
+            df_ypf_ba, df_ypf = fetch_ypf_data("YPF.BA", "YPF", start_date, end_date)
 
             if not df_ypf_ba.empty and not df_ypf.empty:
                 # Calculate CCL de YPF ratio
