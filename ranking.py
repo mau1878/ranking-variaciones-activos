@@ -19,11 +19,31 @@ frequency = st.selectbox("Select frequency:", ["Daily", "Weekly", "Monthly"])
 font_size = st.slider("Select font size for the table:", min_value=10, max_value=30, value=14)
 table_width = st.slider("Select table width (in pixels):", min_value=400, max_value=1200, value=800)
 
+# Checkbox to apply CCL de YPF
+apply_ccl = st.checkbox("Aplicar CCL de YPF")
+
+def fetch_and_adjust(ticker, start, end):
+    data = yf.download(ticker, start=start, end=end)
+    # Forward-fill to handle missing values
+    data.ffill(inplace=True)
+    return data
+
 # Fetch data
 if ticker:
-    df = yf.download(ticker, start=start_date, end=end_date)
+    df = fetch_and_adjust(ticker, start=start_date, end=end_date)
 
     if not df.empty:
+        if apply_ccl:
+            # Fetch YPF.BA and YPF data and adjust
+            df_ypf_ba = fetch_and_adjust("YPF.BA", start=start_date, end=end_date)
+            df_ypf = fetch_and_adjust("YPF", start=start_date, end=end_date)
+
+            # Calculate CCL de YPF ratio
+            df['CCL de YPF'] = df_ypf_ba['Adj Close'] / df_ypf['Adj Close']
+
+            # Adjust ticker data by dividing by CCL ratio
+            df['Adj Close'] = df['Adj Close'] / df['CCL de YPF']
+
         # Resample data based on selected frequency
         if frequency == "Daily":
             df_resampled = df
@@ -32,9 +52,9 @@ if ticker:
         elif frequency == "Monthly":
             df_resampled = df.resample('M').last()
 
-        # Calculate price variations
-        df_resampled['Price Variation (%)'] = df_resampled['Adj Close'].pct_change() * 100
-        df_resampled['Next Day Variation (%)'] = df_resampled['Price Variation (%)'].shift(-1)
+        # Calculate price variations with two decimal points
+        df_resampled['Price Variation (%)'] = (df_resampled['Adj Close'].pct_change() * 100).round(2)
+        df_resampled['Next Day Variation (%)'] = df_resampled['Price Variation (%)'].shift(-1).round(2)
         df_resampled.dropna(inplace=True)
 
         # Format date to remove hour
