@@ -5,6 +5,15 @@ import yfinance as yf
 import matplotlib.pyplot as plt
 from datetime import datetime
 
+def calculate_irr(cash_flows):
+    """Calculate Internal Rate of Return (IRR)."""
+    try:
+        irr = np.irr(cash_flows)
+        return irr * 100  # Convert to percentage
+    except Exception as e:
+        st.error(f"Error calculating IRR: {e}")
+        return None
+
 def backtest_strategy(tickers, start_date, end_date, short_window, medium_window, long_window, strategy, start_with_position):
     all_results = []
     for ticker in tickers:
@@ -39,28 +48,34 @@ def backtest_strategy(tickers, start_date, end_date, short_window, medium_window
             
             # Initialize variables for trade tracking
             trades = []
+            cash_flows = []
             current_position = 1 if start_with_position else 0
             entry_price = data['Close'].iloc[0] if start_with_position else 0
             
             # Track trades based on signals
             for i in range(1, len(data)):
                 if data['Position'].iloc[i] == 1 and current_position == 0:  # Buy signal
+                    cash_flows.append(-data['Close'].iloc[i])  # Outflow
                     entry_price = data['Close'].iloc[i]
                     current_position = 1
                 elif data['Position'].iloc[i] == -1 and current_position == 1:  # Sell signal
-                    exit_price = data['Close'].iloc[i]
-                    trade_return = (exit_price - entry_price) / entry_price
+                    cash_flows.append(data['Close'].iloc[i])  # Inflow
+                    trade_return = (data['Close'].iloc[i] - entry_price) / entry_price
                     trades.append(trade_return)
                     current_position = 0
             
             # Handle remaining position
             if current_position == 1:
                 final_price = data['Close'].iloc[-1]
+                cash_flows.append(final_price)  # Inflow
                 trade_return = (final_price - entry_price) / entry_price
                 trades.append(trade_return)
             
             # Calculate total return from all trades
             total_return = sum(trades)
+            
+            # Calculate IRR
+            irr = calculate_irr(cash_flows)
             
             # Plot data and signals
             plt.figure(figsize=(12,8))
@@ -92,7 +107,8 @@ def backtest_strategy(tickers, start_date, end_date, short_window, medium_window
             all_results.append({
                 'Ticker': ticker,
                 'Strategy': strategy,
-                'Total Return (%)': total_return * 100
+                'Total Return (%)': total_return * 100,
+                'IRR (%)': irr if irr is not None else np.nan
             })
         
         except Exception as e:
@@ -138,9 +154,13 @@ def main():
                 # Analysis of best strategy
                 best_strategy = results_df.groupby('Strategy')['Total Return (%)'].mean().idxmax()
                 best_return = results_df.groupby('Strategy')['Total Return (%)'].mean().max()
-                st.write(f"The best strategy based on average return is: {best_strategy} with an average return of {best_return:.2f}%")
+                best_irr_strategy = results_df.groupby('Strategy')['IRR (%)'].mean().idxmax()
+                best_irr = results_df.groupby('Strategy')['IRR (%)'].mean().max()
+                
+                st.write(f"Best Strategy Based on Average Total Return: {best_strategy} ({best_return:.2f}%)")
+                st.write(f"Best Strategy Based on Average IRR: {best_irr_strategy} ({best_irr:.2f}%)")
         else:
-            st.error("End date must be after start date.")
+            st.error("Start date must be before end date.")
 
 if __name__ == "__main__":
     main()
