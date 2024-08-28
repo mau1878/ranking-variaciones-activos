@@ -1,7 +1,6 @@
 import streamlit as st
 import yfinance as yf
 import pandas as pd
-import numpy as np
 
 # Set page configuration
 st.set_page_config(page_title="Stock Price Variations", layout="wide")
@@ -27,8 +26,7 @@ def fetch_data_with_previous(ticker, start_date, end_date):
     df = yf.download(ticker, start=start_date, end=end_date)
     if df.empty:
         return df
-    # Forward fill missing data
-    df = df.ffill()
+    df = df.ffill()  # Forward fill missing values
     return df
 
 # Fetch and adjust data for the main ticker
@@ -88,7 +86,7 @@ if ticker:
                 # Forward fill missing values for ratio
                 df_merged.fillna(method='ffill', inplace=True)
 
-                # Check if the merged dataframe has values
+                # Check if the merged dataframe has valid data
                 if df_merged[['Adj Close_YPFD', 'Adj Close_YPF']].dropna().empty:
                     st.warning("No valid data for ratio calculation.")
                 else:
@@ -104,6 +102,8 @@ if ticker:
                     df_resampled = df_merged[['Price Variation (%)', 'Next Day Variation (%)']]
             else:
                 st.warning("No data available for 'YPFD.BA' or 'YPF'.")
+        else:
+            df_resampled = df_resampled[['Price Variation (%)', 'Next Day Variation (%)']]
 
         # Limit decimal places
         df_resampled = df_resampled.round(2)
