@@ -87,11 +87,11 @@ def backtest_strategy(tickers, start_date, end_date, short_window, medium_window
             # Generate signals based on selected strategy
             if strategy == 'Cross between price and SMA 1':
                 data['Signal'] = 0
-                data.iloc[short_window:, data.columns.get_loc('Signal')] = np.where(data['Close'].iloc[short_window:] > data['SMA1'].iloc[short_window:], 1, 0)
+                data.loc[short_window:, 'Signal'] = np.where(data['Close'].iloc[short_window:] > data['SMA1'].iloc[short_window:], 1, 0)
                 data['Position'] = data['Signal'].diff().fillna(0)
             elif strategy == 'Cross between SMA 1 and SMA 2':
                 data['Signal'] = 0
-                data.iloc[medium_window:, data.columns.get_loc('Signal')] = np.where(data['SMA1'].iloc[medium_window:] > data['SMA2'].iloc[medium_window:], 1, 0)
+                data.loc[medium_window:, 'Signal'] = np.where(data['SMA1'].iloc[medium_window:] > data['SMA2'].iloc[medium_window:], 1, 0)
                 data['Position'] = data['Signal'].diff().fillna(0)
             elif strategy == 'Cross between SMAs 1, 2 and 3':
                 data['Signal'] = 0
