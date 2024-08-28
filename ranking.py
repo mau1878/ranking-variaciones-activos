@@ -38,9 +38,24 @@ def backtest_strategy(tickers, start_date, end_date, short_window, medium_window
                 data['Signal'] = np.where(bearish_alignment, -1, data['Signal'])
                 data['Position'] = data['Signal'].diff()
             
-            # Calculate returns
-            data['Return'] = data['Close'].pct_change().shift(-1) * data['Position']
-            total_return = data['Return'].sum()
+            # Initialize variables for trade tracking
+            trades = []
+            current_position = 0
+            entry_price = 0
+            
+            # Track trades based on signals
+            for i in range(1, len(data)):
+                if data['Position'].iloc[i] == 1 and current_position == 0:  # Buy signal
+                    entry_price = data['Close'].iloc[i]
+                    current_position = 1
+                elif data['Position'].iloc[i] == -1 and current_position == 1:  # Sell signal
+                    exit_price = data['Close'].iloc[i]
+                    trade_return = (exit_price - entry_price) / entry_price
+                    trades.append(trade_return)
+                    current_position = 0
+            
+            # Calculate total return from all trades
+            total_return = sum(trades)
             
             # Plot data and signals
             plt.figure(figsize=(12,8))
