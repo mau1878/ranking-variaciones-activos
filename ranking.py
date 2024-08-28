@@ -27,7 +27,6 @@ def fetch_data_with_previous(ticker, start_date, end_date):
     df = yf.download(ticker, start=start_date, end=end_date)
     if df.empty:
         return df
-
     # Forward fill missing data
     df = df.ffill()
     return df
@@ -35,6 +34,7 @@ def fetch_data_with_previous(ticker, start_date, end_date):
 # Fetch and adjust data for the main ticker
 if ticker:
     df_ticker = fetch_data_with_previous(ticker, start_date, end_date)
+    df_ticker.index.name = 'Date'
 
     if not df_ticker.empty:
         # Handle frequency
@@ -53,11 +53,10 @@ if ticker:
         # Format date to remove hour
         df_resampled.index = df_resampled.index.strftime('%Y-%m-%d')
 
-        # Apply CCL ratio if checked
         if apply_ccl:
             df_ypfd = fetch_data_with_previous('YPFD.BA', start_date, end_date)
             df_ypf = fetch_data_with_previous('YPF', start_date, end_date)
-            
+
             if not df_ypfd.empty and not df_ypf.empty:
                 # Handle frequency for ratio tickers
                 if frequency == "Daily":
@@ -70,18 +69,26 @@ if ticker:
                     df_ypfd_resampled = df_ypfd.resample('M').last()
                     df_ypf_resampled = df_ypf.resample('M').last()
 
-                # Create the ratio dataframe
-                df_ratio = df_ypfd_resampled['Adj Close'] / df_ypf_resampled['Adj Close']
-                df_ratio = df_ratio.ffill()  # Forward fill any missing data
-                
-                # Apply ratio to the main ticker
-                df_resampled['Adjusted Close'] = df_resampled['Adj Close'] / df_ratio
-                df_resampled['Price Variation (%)'] = df_resampled['Adjusted Close'].pct_change() * 100
-                df_resampled['Next Day Variation (%)'] = df_resampled['Price Variation (%)'].shift(-1)
-                df_resampled.dropna(inplace=True)
+                # Merge dataframes to get the ratio
+                df_merged = pd.merge(df_resampled, df_ypfd_resampled[['Adj Close']], left_index=True, right_index=True, suffixes=('', '_YPFD'))
+                df_merged = pd.merge(df_merged, df_ypf_resampled[['Adj Close']], left_index=True, right_index=True, suffixes=('', '_YPF'))
+
+                # Forward fill missing values for ratio
+                df_merged.fillna(method='ffill', inplace=True)
+
+                # Calculate the CCL ratio and adjust the ticker's data
+                df_merged['Ratio'] = df_merged['Adj Close_YPFD'] / df_merged['Adj Close_YPF']
+                df_merged['Adjusted Close'] = df_merged['Adj Close'] / df_merged['Ratio']
+
+                # Recalculate variations based on the adjusted close
+                df_merged['Price Variation (%)'] = df_merged['Adjusted Close'].pct_change() * 100
+                df_merged['Next Day Variation (%)'] = df_merged['Price Variation (%)'].shift(-1)
+                df_merged.dropna(inplace=True)
+
+                df_resampled = df_merged[['Price Variation (%)', 'Next Day Variation (%)']]
             else:
                 st.warning("No data available for 'YPFD.BA' or 'YPF'.")
-        
+
         # Limit decimal places
         df_resampled = df_resampled.round(2)
 
