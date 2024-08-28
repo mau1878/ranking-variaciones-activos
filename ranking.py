@@ -31,7 +31,6 @@ def backtest_strategy(tickers, start_date, end_date, short_window, medium_window
                 data['Position'] = data['Signal'].diff()
             elif strategy == 'Cross between SMAs 1, 2 and 3':
                 data['Signal'] = 0
-                # Create alignment conditions
                 bullish_alignment = (data['SMA1'] > data['SMA2']) & (data['SMA2'] > data['SMA3'])
                 bearish_alignment = (data['SMA1'] < data['SMA2']) & (data['SMA2'] < data['SMA3'])
                 data['Signal'] = np.where(bullish_alignment, 1, 0)
@@ -89,20 +88,17 @@ def backtest_strategy(tickers, start_date, end_date, short_window, medium_window
             st.pyplot(plt)  # Use Streamlit to display the plot
             plt.close()  # Close the plot to free memory
             
-            # Append result for this ticker
+            # Append result for this ticker and strategy
             all_results.append({
                 'Ticker': ticker,
+                'Strategy': strategy,
                 'Total Return (%)': total_return * 100
             })
         
         except Exception as e:
             st.error(f"An error occurred for ticker {ticker}: {e}")
     
-    # Display results as a table
-    if all_results:
-        results_df = pd.DataFrame(all_results)
-        st.write("Return Calculations for Executed Signals:")
-        st.dataframe(results_df)
+    return all_results
 
 # Streamlit app
 def main():
@@ -118,17 +114,31 @@ def main():
     medium_window = st.slider("Medium Window (days)", min_value=1, max_value=100, value=100)
     long_window = st.slider("Long Window (days)", min_value=1, max_value=200, value=200)
     
-    strategy = st.selectbox("Choose Strategy", [
-        'Cross between price and SMA 1',
-        'Cross between SMA 1 and SMA 2',
-        'Cross between SMAs 1, 2 and 3'
-    ])
-    
     start_with_position = st.checkbox("Assume starting with a position bought on the start date", value=False)
 
     if st.button("Run Backtest"):
         if start_date < end_date:
-            backtest_strategy(tickers, start_date, end_date, short_window, medium_window, long_window, strategy, start_with_position)
+            strategies = [
+                'Cross between price and SMA 1',
+                'Cross between SMA 1 and SMA 2',
+                'Cross between SMAs 1, 2 and 3'
+            ]
+            
+            all_results = []
+            for strategy in strategies:
+                results = backtest_strategy(tickers, start_date, end_date, short_window, medium_window, long_window, strategy, start_with_position)
+                all_results.extend(results)
+            
+            # Display results as a table
+            if all_results:
+                results_df = pd.DataFrame(all_results)
+                st.write("Return Calculations for Executed Signals:")
+                st.dataframe(results_df)
+                
+                # Analysis of best strategy
+                best_strategy = results_df.groupby('Strategy')['Total Return (%)'].mean().idxmax()
+                best_return = results_df.groupby('Strategy')['Total Return (%)'].mean().max()
+                st.write(f"The best strategy based on average return is: {best_strategy} with an average return of {best_return:.2f}%")
         else:
             st.error("End date must be after start date.")
 
