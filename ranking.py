@@ -10,14 +10,18 @@ from requests.exceptions import RequestException
 def calculate_irr(cash_flows):
     """Calculate the Internal Rate of Return (IRR)"""
     def npv(irr):
-        return np.sum(np.array(cash_flows) / (1 + irr) ** np.arange(len(cash_flows)))
+        try:
+            return np.sum(np.array(cash_flows) / (1 + irr) ** np.arange(len(cash_flows)))
+        except OverflowError as e:
+            st.error(f"OverflowError during IRR calculation: {e}")
+            return np.nan
     
     try:
         irr = newton(npv, 0.1)
         return irr * 100  # Return IRR as percentage
     except Exception as e:
         st.error(f"Error calculating IRR: {e}")
-        return None
+        return np.nan
 
 def plot_strategy(data, strategy, ticker):
     """Plot the strategy results"""
@@ -29,14 +33,14 @@ def plot_strategy(data, strategy, ticker):
         plt.plot(data['SMA3'], label=f'SMA {long_window}-day', alpha=0.75)
 
     if strategy == 'Cross between price and SMA 1':
-        plt.plot(data[data['Position'] == 1].index, data['SMA1'][data['Position'] == 1], '^', markersize=10, color='g', label='Buy Signal')
-        plt.plot(data[data['Position'] == -1].index, data['SMA1'][data['Position'] == -1], 'v', markersize=10, color='r', label='Sell Signal')
+        plt.plot(data[data['Position'] == 1].index, data['SMA1'].loc[data['Position'] == 1], '^', markersize=10, color='g', label='Buy Signal')
+        plt.plot(data[data['Position'] == -1].index, data['SMA1'].loc[data['Position'] == -1], 'v', markersize=10, color='r', label='Sell Signal')
     elif strategy == 'Cross between SMA 1 and SMA 2':
-        plt.plot(data[data['Position'] == 1].index, data['SMA1'][data['Position'] == 1], '^', markersize=10, color='g', label='Buy Signal')
-        plt.plot(data[data['Position'] == -1].index, data['SMA1'][data['Position'] == -1], 'v', markersize=10, color='r', label='Sell Signal')
+        plt.plot(data[data['Position'] == 1].index, data['SMA1'].loc[data['Position'] == 1], '^', markersize=10, color='g', label='Buy Signal')
+        plt.plot(data[data['Position'] == -1].index, data['SMA1'].loc[data['Position'] == -1], 'v', markersize=10, color='r', label='Sell Signal')
     elif strategy == 'Cross between SMAs 1, 2 and 3':
-        plt.plot(data[data['Position'] == 1].index, data['SMA1'][data['Position'] == 1], '^', markersize=10, color='g', label='Buy Signal')
-        plt.plot(data[data['Position'] == -1].index, data['SMA1'][data['Position'] == -1], 'v', markersize=10, color='r', label='Sell Signal')
+        plt.plot(data[data['Position'] == 1].index, data['SMA1'].loc[data['Position'] == 1], '^', markersize=10, color='g', label='Buy Signal')
+        plt.plot(data[data['Position'] == -1].index, data['SMA1'].loc[data['Position'] == -1], 'v', markersize=10, color='r', label='Sell Signal')
 
     plt.title(f'{ticker} Trading Strategy Backtest')
     plt.xlabel('Date')
@@ -82,11 +86,11 @@ def backtest_strategy(tickers, start_date, end_date, short_window, medium_window
             # Generate signals based on selected strategy
             if strategy == 'Cross between price and SMA 1':
                 data['Signal'] = 0
-                data['Signal'][short_window:] = np.where(data['Close'][short_window:] > data['SMA1'][short_window:], 1, 0)
+                data.loc[short_window:, 'Signal'] = np.where(data['Close'][short_window:] > data['SMA1'][short_window:], 1, 0)
                 data['Position'] = data['Signal'].diff()
             elif strategy == 'Cross between SMA 1 and SMA 2':
                 data['Signal'] = 0
-                data['Signal'][medium_window:] = np.where(data['SMA1'][medium_window:] > data['SMA2'][medium_window:], 1, 0)
+                data.loc[medium_window:, 'Signal'] = np.where(data['SMA1'][medium_window:] > data['SMA2'][medium_window:], 1, 0)
                 data['Position'] = data['Signal'].diff()
             elif strategy == 'Cross between SMAs 1, 2 and 3':
                 data['Signal'] = 0
