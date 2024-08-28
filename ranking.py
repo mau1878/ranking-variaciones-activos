@@ -17,7 +17,7 @@ frequency = st.selectbox("Select frequency:", ["Daily", "Weekly", "Monthly"])
 
 # Font size and table width settings
 font_size = st.slider("Select font size for the table:", min_value=10, max_value=30, value=14)
-table_width = st.slider("Select table width:", min_value=400, max_value=1200, value=800)
+table_width = st.slider("Select table width (in pixels):", min_value=400, max_value=1200, value=800)
 
 # Fetch data
 if ticker:
@@ -49,18 +49,26 @@ if ticker:
             color = 'green' if val > 0 else 'red'
             return f'background-color: {color}; opacity: {min(0.5 + abs(val/100), 1)}'
 
+        # CSS for custom font size and table width
+        st.markdown(f"""
+            <style>
+            .dataframe {{
+                font-size: {font_size}px !important;
+                width: {table_width}px !important;
+            }}
+            </style>
+            """, unsafe_allow_html=True)
+
         # Display tables
         st.subheader(f"Top 30 Positive Price Variations for {ticker} ({frequency})")
         st.write(top_positive[['Price Variation (%)', 'Next Day Variation (%)']]
                  .style.applymap(color_variation)
-                 .set_properties(**{'font-size': f'{font_size}px'})
-                 .set_table_styles([{'selector': 'table', 'props': [('width', f'{table_width}px')]}]))
+                 .set_table_styles([{'selector': '', 'props': [('width', f'{table_width}px')]}]), unsafe_allow_html=True)
 
         st.subheader(f"Top 30 Negative Price Variations for {ticker} ({frequency})")
         st.write(top_negative[['Price Variation (%)', 'Next Day Variation (%)']]
                  .style.applymap(color_variation)
-                 .set_properties(**{'font-size': f'{font_size}px'})
-                 .set_table_styles([{'selector': 'table', 'props': [('width', f'{table_width}px')]}]))
+                 .set_table_styles([{'selector': '', 'props': [('width', f'{table_width}px')]}]), unsafe_allow_html=True)
 
     else:
         st.error("No data found for the specified ticker and date range.")
