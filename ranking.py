@@ -9,7 +9,7 @@ st.set_page_config(page_title="Stock Price Variations", layout="wide")
 # Input fields
 st.title("Stock Price Variation Analyzer")
 ticker = st.text_input("Enter the ticker symbol:", "AAPL")
-start_date = st.date_input("Start date:", value=pd.to_datetime("1970-01-01"))
+start_date = st.date_input("Start date:", value=pd.to_datetime("2023-01-01"), min_value=pd.to_datetime("1970-01-01"), max_value=pd.to_datetime("today"))
 end_date = st.date_input("End date:", value=pd.to_datetime("today"))
 
 # Frequency selection
