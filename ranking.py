@@ -147,7 +147,7 @@ if __name__ == "__main__":
     tickers = st.text_input("Enter tickers (comma-separated):", "AAPL, MSFT").split(',')
     tickers = [ticker.strip().upper() for ticker in tickers]
     start_date = st.date_input("Start Date", pd.to_datetime('2023-01-01'))
-    end_date = st.date_input("End Date", datetime.today().strftime('%Y-%m-%d'))
+    end_date = st.date_input("End Date", datetime.today().date())
     short_window = st.slider("Short Window", 1, 60, 20)
     medium_window = st.slider("Medium Window", 1, 60, 50)
     long_window = st.slider("Long Window", 1, 60, 200)
