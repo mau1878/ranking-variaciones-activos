@@ -4,19 +4,22 @@ import numpy as np
 import matplotlib.pyplot as plt
 import streamlit as st
 
+# Function to calculate buy-and-hold return
 def calculate_buy_and_hold_return(start_price, end_price):
     return (end_price - start_price) / start_price
 
+# Function to calculate annualized return
 def calculate_annualized_return(total_return_percent, days):
     return ((1 + total_return_percent / 100) ** (365 / days) - 1) * 100
 
+# Function to calculate annualized buy-and-hold return
 def calculate_annualized_buy_and_hold_return(start_price, end_price, days):
     buy_and_hold_return = calculate_buy_and_hold_return(start_price, end_price)
     return calculate_annualized_return(buy_and_hold_return * 100, days)
 
 def backtest_strategy(tickers, start_date, end_date, short_window, medium_window, long_window, strategy, start_with_position):
     all_results = []
-    
+
     for ticker in tickers:
         try:
             # Fetch historical data
@@ -93,35 +96,9 @@ def backtest_strategy(tickers, start_date, end_date, short_window, medium_window
                 total_to_buy_and_hold_ratio = np.nan  # Handle division by zero
 
             if annualized_buy_and_hold_return != 0:
-                annualized_to_buy_and_hold_ratio = annualized_return / annualized_buy_and-hold_return
+                annualized_to_buy_and_hold_ratio = annualized_return / annualized_buy_and_hold_return
             else:
                 annualized_to_buy_and_hold_ratio = np.nan  # Handle division by zero
-            
-            # Plot data and signals
-            plt.figure(figsize=(12,8))
-            plt.plot(data['Close'], label='Close Price', alpha=0.5)
-            plt.plot(data['SMA1'], label=f'SMA {short_window}-day', alpha=0.75)
-            plt.plot(data['SMA2'], label=f'SMA {medium_window}-day', alpha=0.75)
-            if long_window:
-                plt.plot(data['SMA3'], label=f'SMA {long_window}-day', alpha=0.75)
-            
-            if strategy == 'Cross between price and SMA 1':
-                plt.plot(data[data['Position'] == 1].index, data['SMA1'][data['Position'] == 1], '^', markersize=10, color='g', label='Buy Signal')
-                plt.plot(data[data['Position'] == -1].index, data['SMA1'][data['Position'] == -1], 'v', markersize=10, color='r', label='Sell Signal')
-            elif strategy == 'Cross between SMA 1 and SMA 2':
-                plt.plot(data[data['Position'] == 1].index, data['SMA1'][data['Position'] == 1], '^', markersize=10, color='g', label='Buy Signal')
-                plt.plot(data[data['Position'] == -1].index, data['SMA1'][data['Position'] == -1], 'v', markersize=10, color='r', label='Sell Signal')
-            elif strategy == 'Cross between SMAs 1, 2 and 3':
-                plt.plot(data[data['Position'] == 1].index, data['SMA1'][data['Position'] == 1], '^', markersize=10, color='g', label='Buy Signal')
-                plt.plot(data[data['Position'] == -1].index, data['SMA1'][data['Position'] == -1], 'v', markersize=10, color='r', label='Sell Signal')
-            
-            plt.title(f'{ticker} Trading Strategy Backtest')
-            plt.xlabel('Date')
-            plt.ylabel('Price')
-            plt.legend(loc='best')
-            plt.grid(True)
-            st.pyplot(plt)  # Use Streamlit to display the plot
-            plt.close()  # Close the plot to free memory
             
             # Append result for this ticker and strategy
             all_results.append({
@@ -139,3 +116,23 @@ def backtest_strategy(tickers, start_date, end_date, short_window, medium_window
             st.error(f"An error occurred for ticker {ticker}: {e}")
     
     return all_results
+
+# Example usage
+if __name__ == "__main__":
+    st.title("Trading Strategy Backtest")
+    
+    tickers = st.text_input("Enter tickers (comma-separated):", "AAPL, MSFT").split(',')
+    tickers = [ticker.strip().upper() for ticker in tickers]
+    start_date = st.date_input("Start Date", pd.to_datetime('2023-01-01'))
+    end_date = st.date_input("End Date", pd.to_datetime('2024-01-01'))
+    short_window = st.slider("Short Window", 1, 60, 20)
+    medium_window = st.slider("Medium Window", 1, 60, 50)
+    long_window = st.slider("Long Window", 1, 60, 200)
+    strategy = st.selectbox("Select Strategy", ['Cross between price and SMA 1', 'Cross between SMA 1 and SMA 2', 'Cross between SMAs 1, 2 and 3'])
+    start_with_position = st.checkbox("Start with Initial Position", value=False)
+    
+    if st.button("Run Backtest"):
+        results = backtest_strategy(tickers, start_date, end_date, short_window, medium_window, long_window, strategy, start_with_position)
+        results_df = pd.DataFrame(results)
+        st.write(results_df)
+        st.write("Results successfully calculated.")
