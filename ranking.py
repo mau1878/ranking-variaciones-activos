@@ -34,6 +34,12 @@ def backtest_strategy(tickers, start_date, end_date, short_window, medium_window
             end_price = data['Close'].iloc[-1]
             buy_and_hold_return = calculate_buy_and_hold_return(start_price, end_price)
             
+            # Calculate Annualized Buy-and-Hold Return
+            days = (pd.to_datetime(end_date) - pd.to_datetime(start_date)).days
+            if days == 0:
+                days = 1  # Avoid division by zero
+            annualized_buy_and_hold_return = calculate_annualized_return(buy_and_hold_return, days)
+            
             # Generate signals based on selected strategy
             if strategy == 'Cross between price and SMA 1':
                 data['Signal'] = 0
@@ -84,39 +90,14 @@ def backtest_strategy(tickers, start_date, end_date, short_window, medium_window
             # Calculate annualized return
             annualized_return = calculate_annualized_return(total_return * 100, days)
             
-            # Plot data and signals
-            plt.figure(figsize=(12,8))
-            plt.plot(data['Close'], label='Close Price', alpha=0.5)
-            plt.plot(data['SMA1'], label=f'SMA {short_window}-day', alpha=0.75)
-            plt.plot(data['SMA2'], label=f'SMA {medium_window}-day', alpha=0.75)
-            if long_window:
-                plt.plot(data['SMA3'], label=f'SMA {long_window}-day', alpha=0.75)
-            
-            if strategy == 'Cross between price and SMA 1':
-                plt.plot(data[data['Position'] == 1].index, data['SMA1'][data['Position'] == 1], '^', markersize=10, color='g', label='Buy Signal')
-                plt.plot(data[data['Position'] == -1].index, data['SMA1'][data['Position'] == -1], 'v', markersize=10, color='r', label='Sell Signal')
-            elif strategy == 'Cross between SMA 1 and SMA 2':
-                plt.plot(data[data['Position'] == 1].index, data['SMA1'][data['Position'] == 1], '^', markersize=10, color='g', label='Buy Signal')
-                plt.plot(data[data['Position'] == -1].index, data['SMA1'][data['Position'] == -1], 'v', markersize=10, color='r', label='Sell Signal')
-            elif strategy == 'Cross between SMAs 1, 2 and 3':
-                plt.plot(data[data['Position'] == 1].index, data['SMA1'][data['Position'] == 1], '^', markersize=10, color='g', label='Buy Signal')
-                plt.plot(data[data['Position'] == -1].index, data['SMA1'][data['Position'] == -1], 'v', markersize=10, color='r', label='Sell Signal')
-            
-            plt.title(f'{ticker} Trading Strategy Backtest')
-            plt.xlabel('Date')
-            plt.ylabel('Price')
-            plt.legend(loc='best')
-            plt.grid(True)
-            st.pyplot(plt)  # Use Streamlit to display the plot
-            plt.close()  # Close the plot to free memory
-            
             # Append result for this ticker and strategy
             all_results.append({
                 'Ticker': ticker,
                 'Strategy': strategy,
                 'Total Return (%)': total_return * 100,
                 'Annualized Return (%)': annualized_return,
-                'Buy-and-Hold Return (%)': buy_and_hold_return
+                'Buy-and-Hold Return (%)': buy_and_hold_return,
+                'Annualized Buy-and-Hold Return (%)': annualized_buy_and_hold_return
             })
         
         except Exception as e:
@@ -155,7 +136,26 @@ def main():
             
             # Convert results to DataFrame
             results_df = pd.DataFrame(all_results)
-            st.write(results_df)
+            
+            # Apply conditional formatting
+            def color_strategy_return(val, row):
+                if val > row['Buy-and-Hold Return (%)']:
+                    return 'color: green'
+                elif val < row['Buy-and-Hold Return (%)']:
+                    return 'color: red'
+                return ''
+
+            def color_annualized_return(val, row):
+                if val > row['Annualized Buy-and-Hold Return (%)']:
+                    return 'color: green'
+                elif val < row['Annualized Buy-and-Hold Return (%)']:
+                    return 'color: red'
+                return ''
+
+            styled_df = results_df.style.apply(lambda row: [color_strategy_return(val, row) for val in row[['Total Return (%)', 'Annualized Return (%)']]], axis=1)
+            styled_df = styled_df.apply(lambda row: [color_annualized_return(val, row) for val in row[['Annualized Return (%)']]], axis=1)
+            
+            st.dataframe(styled_df)
         else:
             st.error("End date must be after the start date.")
 
