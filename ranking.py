@@ -2,7 +2,6 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import yfinance as yf
-import matplotlib.pyplot as plt
 from datetime import datetime
 
 def calculate_annualized_return(total_return, days):
@@ -137,25 +136,8 @@ def main():
             # Convert results to DataFrame
             results_df = pd.DataFrame(all_results)
             
-            # Apply conditional formatting
-            def color_strategy_return(val, row):
-                if val > row['Buy-and-Hold Return (%)']:
-                    return 'color: green'
-                elif val < row['Buy-and-Hold Return (%)']:
-                    return 'color: red'
-                return ''
-
-            def color_annualized_return(val, row):
-                if val > row['Annualized Buy-and-Hold Return (%)']:
-                    return 'color: green'
-                elif val < row['Annualized Buy-and-Hold Return (%)']:
-                    return 'color: red'
-                return ''
-
-            styled_df = results_df.style.apply(lambda row: [color_strategy_return(val, row) for val in row[['Total Return (%)', 'Annualized Return (%)']]], axis=1)
-            styled_df = styled_df.apply(lambda row: [color_annualized_return(val, row) for val in row[['Annualized Return (%)']]], axis=1)
-            
-            st.dataframe(styled_df)
+            # Display DataFrame without styling
+            st.dataframe(results_df)
         else:
             st.error("End date must be after the start date.")
 
