@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import yfinance as yf
+import matplotlib.pyplot as plt
 from datetime import datetime
 
 def calculate_annualized_return(total_return, days):
@@ -83,6 +84,32 @@ def backtest_strategy(tickers, start_date, end_date, short_window, medium_window
             # Calculate annualized return
             annualized_return = calculate_annualized_return(total_return * 100, days)
             
+            # Plot data and signals
+            plt.figure(figsize=(12,8))
+            plt.plot(data['Close'], label='Close Price', alpha=0.5)
+            plt.plot(data['SMA1'], label=f'SMA {short_window}-day', alpha=0.75)
+            plt.plot(data['SMA2'], label=f'SMA {medium_window}-day', alpha=0.75)
+            if long_window:
+                plt.plot(data['SMA3'], label=f'SMA {long_window}-day', alpha=0.75)
+            
+            if strategy == 'Cross between price and SMA 1':
+                plt.plot(data[data['Position'] == 1].index, data['SMA1'][data['Position'] == 1], '^', markersize=10, color='g', label='Buy Signal')
+                plt.plot(data[data['Position'] == -1].index, data['SMA1'][data['Position'] == -1], 'v', markersize=10, color='r', label='Sell Signal')
+            elif strategy == 'Cross between SMA 1 and SMA 2':
+                plt.plot(data[data['Position'] == 1].index, data['SMA1'][data['Position'] == 1], '^', markersize=10, color='g', label='Buy Signal')
+                plt.plot(data[data['Position'] == -1].index, data['SMA1'][data['Position'] == -1], 'v', markersize=10, color='r', label='Sell Signal')
+            elif strategy == 'Cross between SMAs 1, 2 and 3':
+                plt.plot(data[data['Position'] == 1].index, data['SMA1'][data['Position'] == 1], '^', markersize=10, color='g', label='Buy Signal')
+                plt.plot(data[data['Position'] == -1].index, data['SMA1'][data['Position'] == -1], 'v', markersize=10, color='r', label='Sell Signal')
+            
+            plt.title(f'{ticker} Trading Strategy Backtest')
+            plt.xlabel('Date')
+            plt.ylabel('Price')
+            plt.legend(loc='best')
+            plt.grid(True)
+            st.pyplot(plt)  # Use Streamlit to display the plot
+            plt.close()  # Close the plot to free memory
+            
             # Append result for this ticker and strategy
             all_results.append({
                 'Ticker': ticker,
@@ -90,57 +117,6 @@ def backtest_strategy(tickers, start_date, end_date, short_window, medium_window
                 'Total Return (%)': total_return * 100,
                 'Annualized Return (%)': annualized_return,
                 'Buy-and-Hold Return (%)': buy_and_hold_return
-            })
-        
-        except Exception as e:
-            st.error(f"An error occurred for ticker {ticker}: {e}")
-    
-    return all_results
-
-def quick_analysis(tickers, start_date, end_date, start_with_position):
-    all_results = []
-    
-    for ticker in tickers:
-        try:
-            # Fetch historical data
-            data = yf.download(ticker, start=start_date, end=end_date)
-            if data.empty:
-                st.error(f"No data fetched for ticker {ticker}.")
-                continue
-            
-            # Buy-and-Hold Return
-            start_price = data['Close'].iloc[0]
-            end_price = data['Close'].iloc[-1]
-            buy_and_hold_return = calculate_buy_and_hold_return(start_price, end_price)
-            days = (pd.to_datetime(end_date) - pd.to_datetime(start_date)).days
-            if days == 0:
-                days = 1  # Avoid division by zero
-            buy_and_hold_annualized_return = calculate_annualized_return(buy_and_hold_return, days)
-            
-            best_return = buy_and_hold_return
-            best_strategy = 'Buy and Hold'
-            
-            for short_window in range(1, 101):
-                for long_window in range(short_window, 101):
-                    if short_window != long_window:
-                        medium_window = (short_window + long_window) // 2
-                        for strategy in [
-                            'Cross between price and SMA 1',
-                            'Cross between SMA 1 and SMA 2',
-                            'Cross between SMAs 1, 2 and 3'
-                        ]:
-                            results = backtest_strategy([ticker], start_date, end_date, short_window, medium_window, long_window, strategy, start_with_position)
-                            for result in results:
-                                if result['Annualized Return (%)'] > best_return:
-                                    best_return = result['Annualized Return (%)']
-                                    best_strategy = result['Strategy']
-            
-            # Append result for this ticker
-            all_results.append({
-                'Ticker': ticker,
-                'Best Strategy': best_strategy,
-                'Best Annualized Return (%)': best_return,
-                'Buy-and-Hold Annualized Return (%)': buy_and_hold_annualized_return
             })
         
         except Exception as e:
@@ -158,32 +134,28 @@ def main():
     start_date = st.date_input("Start Date", pd.to_datetime('2022-01-01'))
     end_date = st.date_input("End Date", pd.to_datetime(datetime.today()))  # Default end date to today
     
+    short_window = st.slider("Short Window (days)", min_value=1, max_value=100, value=40)
+    medium_window = st.slider("Medium Window (days)", min_value=1, max_value=100, value=100)
+    long_window = st.slider("Long Window (days)", min_value=1, max_value=200, value=200)
+    
     start_with_position = st.checkbox("Assume starting with a position bought on the start date", value=False)
-    
-    quick_analysis_mode = st.checkbox("Análisis rápido de rendimientos", value=False)
-    
+
     if st.button("Run Backtest"):
         if start_date < end_date:
-            if quick_analysis_mode:
-                all_results = quick_analysis(tickers, start_date, end_date, start_with_position)
-                # Convert results to DataFrame
-                results_df = pd.DataFrame(all_results)
-                st.write(results_df)
-            else:
-                strategies = [
-                    'Cross between price and SMA 1',
-                    'Cross between SMA 1 and SMA 2',
-                    'Cross between SMAs 1, 2 and 3'
-                ]
-                
-                all_results = []
-                for strategy in strategies:
-                    results = backtest_strategy(tickers, start_date, end_date, 40, 100, 200, strategy, start_with_position)
-                    all_results.extend(results)
-                
-                # Convert results to DataFrame
-                results_df = pd.DataFrame(all_results)
-                st.write(results_df)
+            strategies = [
+                'Cross between price and SMA 1',
+                'Cross between SMA 1 and SMA 2',
+                'Cross between SMAs 1, 2 and 3'
+            ]
+            
+            all_results = []
+            for strategy in strategies:
+                results = backtest_strategy(tickers, start_date, end_date, short_window, medium_window, long_window, strategy, start_with_position)
+                all_results.extend(results)
+            
+            # Convert results to DataFrame
+            results_df = pd.DataFrame(all_results)
+            st.write(results_df)
         else:
             st.error("End date must be after the start date.")
 
