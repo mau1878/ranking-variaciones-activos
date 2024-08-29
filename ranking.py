@@ -84,7 +84,7 @@ def backtest_strategy(tickers, start_date, end_date, short_window, medium_window
                 
                 # Calculate annualized returns
                 annualized_return = calculate_annualized_return(total_return * 100, days)
-                annualized_buy_and_hold_return = calculate_annualized_buy-and-hold_return(start_price, end_price, days)
+                annualized_buy_and_hold_return = calculate_annualized_buy_and_hold_return(start_price, end_price, days)
                 
                 # Calculate ratios
                 if buy_and_hold_return != 0:
