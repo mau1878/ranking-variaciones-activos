@@ -107,7 +107,8 @@ def backtest_strategy(tickers, start_date, end_date, short_window, medium_window
             plt.ylabel('Price')
             plt.legend(loc='best')
             plt.grid(True)
-            st.pyplot(plt)  # Use Streamlit to display the plot
+            if not quick_analysis:
+                st.pyplot(plt)  # Use Streamlit to display the plot
             plt.close()  # Close the plot to free memory
             
             # Append result for this ticker and strategy
@@ -124,40 +125,190 @@ def backtest_strategy(tickers, start_date, end_date, short_window, medium_window
     
     return all_results
 
-# Streamlit app
+def quick_analysis(tickers, start_date, end_date):
+    all_results = []
+    
+    for ticker in tickers:
+        try:
+            # Fetch historical data
+            data = yf.download(ticker, start=start_date, end=end_date)
+            if data.empty:
+                st.error(f"No data fetched for ticker {ticker}.")
+                continue
+            
+            start_price = data['Close'].iloc[0]
+            end_price = data['Close'].iloc[-1]
+            buy_and_hold_return = calculate_buy_and_hold_return(start_price, end_price)
+            days = (pd.to_datetime(end_date) - pd.to_datetime(start_date)).days
+            if days == 0:
+                days = 1  # Avoid division by zero
+            
+            # Analyze SMA cross strategies
+            for short_window in range(1, 101):
+                for medium_window in range(short_window + 1, 101):
+                    # Calculate SMAs
+                    data['SMA1'] = data['Close'].rolling(window=short_window, min_periods=1).mean()
+                    data['SMA2'] = data['Close'].rolling(window=medium_window, min_periods=1).mean()
+                    
+                    # Cross between price and SMA1
+                    data['Signal'] = 0
+                    data['Signal'][short_window:] = np.where(data['Close'][short_window:] > data['SMA1'][short_window:], 1, 0)
+                    data['Position'] = data['Signal'].diff()
+                    
+                    # Track trades
+                    trades = []
+                    current_position = 1
+                    entry_price = data['Close'].iloc[0]
+                    
+                    for i in range(1, len(data)):
+                        if data['Position'].iloc[i] == 1 and current_position == 0:
+                            entry_price = data['Close'].iloc[i]
+                            current_position = 1
+                        elif data['Position'].iloc[i] == -1 and current_position == 1:
+                            exit_price = data['Close'].iloc[i]
+                            trade_return = (exit_price - entry_price) / entry_price
+                            trades.append(trade_return)
+                            current_position = 0
+                    
+                    if current_position == 1:
+                        final_price = data['Close'].iloc[-1]
+                        trade_return = (final_price - entry_price) / entry_price
+                        trades.append(trade_return)
+                    
+                    total_return = sum(trades)
+                    annualized_return = calculate_annualized_return(total_return * 100, days)
+                    
+                    all_results.append({
+                        'Ticker': ticker,
+                        'Strategy': f'Price and SMA1 ({short_window} days)',
+                        'Total Return (%)': total_return * 100,
+                        'Annualized Return (%)': annualized_return,
+                        'Buy-and-Hold Return (%)': buy_and_hold_return
+                    })
+                    
+                    # Cross between SMA1 and SMA2
+                    data['Signal'] = 0
+                    data['Signal'][medium_window:] = np.where(data['SMA1'][medium_window:] > data['SMA2'][medium_window:], 1, 0)
+                    data['Position'] = data['Signal'].diff()
+                    
+                    trades = []
+                    current_position = 1
+                    entry_price = data['Close'].iloc[0]
+                    
+                    for i in range(1, len(data)):
+                        if data['Position'].iloc[i] == 1 and current_position == 0:
+                            entry_price = data['Close'].iloc[i]
+                            current_position = 1
+                        elif data['Position'].iloc[i] == -1 and current_position == 1:
+                            exit_price = data['Close'].iloc[i]
+                            trade_return = (exit_price - entry_price) / entry_price
+                            trades.append(trade_return)
+                            current_position = 0
+                    
+                    if current_position == 1:
+                        final_price = data['Close'].iloc[-1]
+                        trade_return = (final_price - entry_price) / entry_price
+                        trades.append(trade_return)
+                    
+                    total_return = sum(trades)
+                    annualized_return = calculate_annualized_return(total_return * 100, days)
+                    
+                    all_results.append({
+                        'Ticker': ticker,
+                        'Strategy': f'SMA1 and SMA2 ({short_window}/{medium_window} days)',
+                        'Total Return (%)': total_return * 100,
+                        'Annualized Return (%)': annualized_return,
+                        'Buy-and-Hold Return (%)': buy_and_hold_return
+                    })
+                    
+            # Compare with Buy-and-Hold strategy
+            for short_window in range(1, 101):
+                for medium_window in range(short_window + 1, 101):
+                    for long_window in range(medium_window + 1, 101):
+                        data['SMA1'] = data['Close'].rolling(window=short_window, min_periods=1).mean()
+                        data['SMA2'] = data['Close'].rolling(window=medium_window, min_periods=1).mean()
+                        data['SMA3'] = data['Close'].rolling(window=long_window, min_periods=1).mean()
+                        
+                        # Cross between SMA1, SMA2, and SMA3
+                        data['Signal'] = 0
+                        bullish_alignment = (data['SMA1'] > data['SMA2']) & (data['SMA2'] > data['SMA3'])
+                        bearish_alignment = (data['SMA1'] < data['SMA2']) & (data['SMA2'] < data['SMA3'])
+                        data['Signal'] = np.where(bullish_alignment, 1, 0)
+                        data['Signal'] = np.where(bearish_alignment, -1, data['Signal'])
+                        data['Position'] = data['Signal'].diff()
+                        
+                        trades = []
+                        current_position = 1
+                        entry_price = data['Close'].iloc[0]
+                        
+                        for i in range(1, len(data)):
+                            if data['Position'].iloc[i] == 1 and current_position == 0:
+                                entry_price = data['Close'].iloc[i]
+                                current_position = 1
+                            elif data['Position'].iloc[i] == -1 and current_position == 1:
+                                exit_price = data['Close'].iloc[i]
+                                trade_return = (exit_price - entry_price) / entry_price
+                                trades.append(trade_return)
+                                current_position = 0
+                        
+                        if current_position == 1:
+                            final_price = data['Close'].iloc[-1]
+                            trade_return = (final_price - entry_price) / entry_price
+                            trades.append(trade_return)
+                        
+                        total_return = sum(trades)
+                        annualized_return = calculate_annualized_return(total_return * 100, days)
+                        
+                        all_results.append({
+                            'Ticker': ticker,
+                            'Strategy': f'SMA1, SMA2, and SMA3 ({short_window}/{medium_window}/{long_window} days)',
+                            'Total Return (%)': total_return * 100,
+                            'Annualized Return (%)': annualized_return,
+                            'Buy-and-Hold Return (%)': buy_and_hold_return
+                        })
+        
+        except Exception as e:
+            st.error(f"An error occurred for ticker {ticker}: {e}")
+    
+    return all_results
+
 def main():
-    st.title("Trading Strategy Backtest")
+    st.title("Backtesting Trading Strategies")
 
-    # User inputs
-    tickers = st.text_input("Enter Stock Tickers (separated by commas, e.g., AAPL, MSFT):", "AAPL, MSFT").upper().split(',')
-    tickers = [ticker.strip() for ticker in tickers]
-    start_date = st.date_input("Start Date", pd.to_datetime('2022-01-01'))
-    end_date = st.date_input("End Date", pd.to_datetime(datetime.today()))  # Default end date to today
-    
-    short_window = st.slider("Short Window (days)", min_value=1, max_value=100, value=40)
-    medium_window = st.slider("Medium Window (days)", min_value=1, max_value=100, value=100)
-    long_window = st.slider("Long Window (days)", min_value=1, max_value=200, value=200)
-    
-    start_with_position = st.checkbox("Assume starting with a position bought on the start date", value=False)
+    # Streamlit inputs
+    tickers_input = st.text_input("Enter Tickers (comma-separated):")
+    tickers = [ticker.strip().upper() for ticker in tickers_input.split(',')] if tickers_input else []
 
-    if st.button("Run Backtest"):
-        if start_date < end_date:
-            strategies = [
-                'Cross between price and SMA 1',
-                'Cross between SMA 1 and SMA 2',
-                'Cross between SMAs 1, 2 and 3'
-            ]
-            
-            all_results = []
-            for strategy in strategies:
-                results = backtest_strategy(tickers, start_date, end_date, short_window, medium_window, long_window, strategy, start_with_position)
-                all_results.extend(results)
-            
-            # Convert results to DataFrame
-            results_df = pd.DataFrame(all_results)
-            st.write(results_df)
-        else:
-            st.error("End date must be after the start date.")
+    start_date = st.date_input("Start Date", datetime(2023, 1, 1))
+    end_date = st.date_input("End Date", datetime.today())
+
+    quick_analysis_option = st.checkbox("Análisis rápido de rendimientos")
+    start_with_position = st.checkbox("Asumir posición comprada en la fecha de inicio")
+    
+    # Default end date to today if not specified
+    if not end_date:
+        end_date = datetime.today()
+
+    if quick_analysis_option:
+        st.write("Running quick performance analysis...")
+        results = quick_analysis(tickers, start_date, end_date)
+    else:
+        strategy = st.selectbox("Select Strategy", [
+            "Cross between price and SMA 1",
+            "Cross between SMA 1 and SMA 2",
+            "Cross between SMAs 1, 2 and 3"
+        ])
+        short_window = st.slider("Short Window (SMA1)", 1, 100, 20)
+        medium_window = st.slider("Medium Window (SMA2)", 1, 100, 50)
+        long_window = st.slider("Long Window (SMA3)", 1, 100, 100)
+        
+        if st.button("Run Backtest"):
+            st.write("Running backtest...")
+            results = backtest_strategy(tickers, start_date, end_date, short_window, medium_window, long_window, strategy, start_with_position)
+    
+    if 'results' in locals():
+        results_df = pd.DataFrame(results)
+        st.write(results_df)
 
 if __name__ == "__main__":
     main()
