@@ -4,6 +4,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import streamlit as st
 from io import BytesIO
+from datetime import datetime
 
 # Function to calculate buy-and-hold return
 def calculate_buy_and_hold_return(start_price, end_price):
@@ -83,7 +84,7 @@ def backtest_strategy(tickers, start_date, end_date, short_window, medium_window
                 
                 # Calculate annualized returns
                 annualized_return = calculate_annualized_return(total_return * 100, days)
-                annualized_buy_and_hold_return = calculate_annualized_buy_and_hold_return(start_price, end_price, days)
+                annualized_buy_and_hold_return = calculate_annualized_buy-and-hold_return(start_price, end_price, days)
                 
                 # Calculate ratios
                 if buy_and_hold_return != 0:
@@ -114,6 +115,13 @@ def backtest_strategy(tickers, start_date, end_date, short_window, medium_window
                 plt.plot(data.index, data['SMA1'], label='SMA1', alpha=0.7)
                 plt.plot(data.index, data['SMA2'], label='SMA2', alpha=0.7)
                 plt.plot(data.index, data['SMA3'], label='SMA3', alpha=0.7)
+                
+                # Buy and sell signals
+                buy_signals = data[data['Position'] == 1]
+                sell_signals = data[data['Position'] == -1]
+                plt.scatter(buy_signals.index, buy_signals['Close'], marker='^', color='g', label='Buy Signal', s=100)
+                plt.scatter(sell_signals.index, sell_signals['Close'], marker='v', color='r', label='Sell Signal', s=100)
+                
                 plt.title(f'{ticker} - {strategy_name}')
                 plt.xlabel('Date')
                 plt.ylabel('Price')
@@ -139,7 +147,7 @@ if __name__ == "__main__":
     tickers = st.text_input("Enter tickers (comma-separated):", "AAPL, MSFT").split(',')
     tickers = [ticker.strip().upper() for ticker in tickers]
     start_date = st.date_input("Start Date", pd.to_datetime('2023-01-01'))
-    end_date = st.date_input("End Date", pd.to_datetime('2024-01-01'))
+    end_date = st.date_input("End Date", datetime.today().strftime('%Y-%m-%d'))
     short_window = st.slider("Short Window", 1, 60, 20)
     medium_window = st.slider("Medium Window", 1, 60, 50)
     long_window = st.slider("Long Window", 1, 60, 200)
