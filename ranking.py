@@ -1,21 +1,18 @@
-import streamlit as st
+import yfinance as yf
 import pandas as pd
 import numpy as np
-import yfinance as yf
 import matplotlib.pyplot as plt
-from datetime import datetime
-
-def calculate_annualized_return(total_return, days):
-    total_return_decimal = total_return / 100
-    annualized_return = (1 + total_return_decimal) ** (365 / days) - 1
-    return annualized_return * 100
+import streamlit as st
 
 def calculate_buy_and_hold_return(start_price, end_price):
-    return (end_price - start_price) / start_price * 100
+    return (end_price - start_price) / start_price
+
+def calculate_annualized_return(total_return_percent, days):
+    return ((1 + total_return_percent / 100) ** (365 / days) - 1) * 100
 
 def calculate_annualized_buy_and_hold_return(start_price, end_price, days):
     buy_and_hold_return = calculate_buy_and_hold_return(start_price, end_price)
-    return calculate_annualized_return(buy_and_hold_return, days)
+    return calculate_annualized_return(buy_and_hold_return * 100, days)
 
 def backtest_strategy(tickers, start_date, end_date, short_window, medium_window, long_window, strategy, start_with_position):
     all_results = []
@@ -96,7 +93,7 @@ def backtest_strategy(tickers, start_date, end_date, short_window, medium_window
                 total_to_buy_and_hold_ratio = np.nan  # Handle division by zero
 
             if annualized_buy_and_hold_return != 0:
-                annualized_to_buy_and_hold_ratio = annualized_return / annualized_buy_and_hold_return
+                annualized_to_buy_and_hold_ratio = annualized_return / annualized_buy_and-hold_return
             else:
                 annualized_to_buy_and_hold_ratio = np.nan  # Handle division by zero
             
@@ -142,47 +139,3 @@ def backtest_strategy(tickers, start_date, end_date, short_window, medium_window
             st.error(f"An error occurred for ticker {ticker}: {e}")
     
     return all_results
-
-# Streamlit app
-def main():
-    st.title("Trading Strategy Backtest")
-
-    # User inputs
-    tickers = st.text_input("Enter Stock Tickers (separated by commas, e.g., AAPL, MSFT):", "AAPL, MSFT").upper().split(',')
-    tickers = [ticker.strip() for ticker in tickers]
-    start_date = st.date_input("Start Date", pd.to_datetime('2022-01-01'))
-    end_date = st.date_input("End Date", pd.to_datetime(datetime.today()))  # Default end date to today
-    
-    short_window = st.slider("Short Window (days)", min_value=1, max_value=100, value=40)
-    medium_window = st.slider("Medium Window (days)", min_value=1, max_value=100, value=100)
-    long_window = st.slider("Long Window (days)", min_value=1, max_value=100, value=200)
-
-    strategy = st.selectbox("Select Strategy", [
-        'Cross between price and SMA 1',
-        'Cross between SMA 1 and SMA 2',
-        'Cross between SMAs 1, 2 and 3'
-    ])
-
-    start_with_position = st.checkbox("Start with initial position", value=True)
-    
-    if st.button("Run Backtest"):
-        if start_date < end_date:
-            strategies = [
-                'Cross between price and SMA 1',
-                'Cross between SMA 1 and SMA 2',
-                'Cross between SMAs 1, 2 and 3'
-            ]
-            
-            all_results = []
-            for strategy in strategies:
-                results = backtest_strategy(tickers, start_date, end_date, short_window, medium_window, long_window, strategy, start_with_position)
-                all_results.extend(results)
-            
-            # Convert results to DataFrame
-            results_df = pd.DataFrame(all_results)
-            st.write(results_df)
-        else:
-            st.error("End date must be after the start date.")
-
-if __name__ == "__main__":
-    main()
