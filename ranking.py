@@ -90,8 +90,15 @@ def backtest_strategy(tickers, start_date, end_date, short_window, medium_window
             annualized_buy_and_hold_return = calculate_annualized_buy_and_hold_return(start_price, end_price, days)
             
             # Calculate ratios
-            strategy_return_to_buy_and_hold_ratio = total_return / buy_and_hold_return if buy_and_hold_return != 0 else np.nan
-            annualized_strategy_return_to_annualized_buy_and_hold_ratio = annualized_return / annualized_buy_and_hold_return if annualized_buy_and_hold_return != 0 else np.nan
+            if buy_and_hold_return != 0:
+                total_to_buy_and_hold_ratio = total_return / buy_and_hold_return
+            else:
+                total_to_buy_and_hold_ratio = np.nan  # Handle division by zero
+
+            if annualized_buy_and_hold_return != 0:
+                annualized_to_buy_and_hold_ratio = annualized_return / annualized_buy_and_hold_return
+            else:
+                annualized_to_buy_and_hold_ratio = np.nan  # Handle division by zero
             
             # Plot data and signals
             plt.figure(figsize=(12,8))
@@ -127,8 +134,8 @@ def backtest_strategy(tickers, start_date, end_date, short_window, medium_window
                 'Annualized Return (%)': annualized_return,
                 'Buy-and-Hold Return (%)': buy_and_hold_return,
                 'Annualized Buy-and-Hold Return (%)': annualized_buy_and_hold_return,
-                'Strategy Return / Buy-and-Hold Return Ratio': strategy_return_to_buy_and_hold_ratio,
-                'Annualized Strategy Return / Annualized Buy-and-Hold Return Ratio': annualized_strategy_return_to_annualized_buy_and_hold_ratio
+                'Total-to-Buy-and-Hold Ratio': total_to_buy_and_hold_ratio,
+                'Annualized-to-Buy-and-Hold Ratio': annualized_to_buy_and_hold_ratio
             })
         
         except Exception as e:
@@ -148,10 +155,16 @@ def main():
     
     short_window = st.slider("Short Window (days)", min_value=1, max_value=100, value=40)
     medium_window = st.slider("Medium Window (days)", min_value=1, max_value=100, value=100)
-    long_window = st.slider("Long Window (days)", min_value=1, max_value=200, value=200)
-    
-    start_with_position = st.checkbox("Assume starting with a position bought on the start date", value=False)
+    long_window = st.slider("Long Window (days)", min_value=1, max_value=100, value=200)
 
+    strategy = st.selectbox("Select Strategy", [
+        'Cross between price and SMA 1',
+        'Cross between SMA 1 and SMA 2',
+        'Cross between SMAs 1, 2 and 3'
+    ])
+
+    start_with_position = st.checkbox("Start with initial position", value=True)
+    
     if st.button("Run Backtest"):
         if start_date < end_date:
             strategies = [
