@@ -89,6 +89,10 @@ def backtest_strategy(tickers, start_date, end_date, short_window, medium_window
             annualized_return = calculate_annualized_return(total_return * 100, days)
             annualized_buy_and_hold_return = calculate_annualized_buy_and_hold_return(start_price, end_price, days)
             
+            # Calculate ratios
+            strategy_return_to_buy_and_hold_ratio = total_return / buy_and_hold_return if buy_and_hold_return != 0 else np.nan
+            annualized_strategy_return_to_annualized_buy_and_hold_ratio = annualized_return / annualized_buy_and_hold_return if annualized_buy_and_hold_return != 0 else np.nan
+            
             # Plot data and signals
             plt.figure(figsize=(12,8))
             plt.plot(data['Close'], label='Close Price', alpha=0.5)
@@ -122,7 +126,9 @@ def backtest_strategy(tickers, start_date, end_date, short_window, medium_window
                 'Total Return (%)': total_return * 100,
                 'Annualized Return (%)': annualized_return,
                 'Buy-and-Hold Return (%)': buy_and_hold_return,
-                'Annualized Buy-and-Hold Return (%)': annualized_buy_and_hold_return
+                'Annualized Buy-and-Hold Return (%)': annualized_buy_and_hold_return,
+                'Strategy Return / Buy-and-Hold Return Ratio': strategy_return_to_buy_and_hold_ratio,
+                'Annualized Strategy Return / Annualized Buy-and-Hold Return Ratio': annualized_strategy_return_to_annualized_buy_and_hold_ratio
             })
         
         except Exception as e:
