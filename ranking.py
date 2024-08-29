@@ -103,7 +103,7 @@ def backtest_strategy(tickers, start_date, end_date, short_window, medium_window
                     'Strategy': strategy_name,
                     'Total Return (%)': total_return * 100,
                     'Annualized Return (%)': annualized_return,
-                    'Buy-and-Hold Return (%)': buy_and_hold_return,
+                    'Buy-and-Hold Return (%)': buy_and_hold_return*100,
                     'Annualized Buy-and-Hold Return (%)': annualized_buy_and_hold_return,
                     'Total-to-Buy-and-Hold Ratio': total_to_buy_and_hold_ratio,
                     'Annualized-to-Buy-and-Hold Ratio': annualized_to_buy_and_hold_ratio
