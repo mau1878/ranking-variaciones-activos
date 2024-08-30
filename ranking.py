@@ -46,21 +46,26 @@ def backtest_strategy(tickers, start_date, end_date, short_window, medium_window
             data['SMA2'] = data['Close'].rolling(window=medium_window, min_periods=1).mean()
             data['SMA3'] = data['Close'].rolling(window=long_window, min_periods=1).mean()
             
+            # Filtrar SMAs para que coincidan con el período especificado
+            data_filtered['SMA1'] = data['SMA1'].loc[start_date:end_date]
+            data_filtered['SMA2'] = data['SMA2'].loc[start_date:end_date]
+            data_filtered['SMA3'] = data['SMA3'].loc[start_date:end_date]
+            
             # Rendimiento de Compra y Mantenimiento
             start_price = data_filtered['Close'].iloc[0]
             end_price = data_filtered['Close'].iloc[-1]
             buy_and_hold_return = calculate_buy_and_hold_return(start_price, end_price)
             
             strategies = [
-                ('Cruce entre el precio y SMA 1', data_filtered['Close'] > data['SMA1']),
-                ('Cruce entre SMA 1 y SMA 2', data['SMA1'] > data['SMA2']),
-                ('Cruce entre SMA 1, 2 y 3', (data['SMA1'] > data['SMA2']) & (data['SMA2'] > data['SMA3']))
+                ('Cruce entre el precio y SMA 1', data_filtered['Close'] > data_filtered['SMA1']),
+                ('Cruce entre SMA 1 y SMA 2', data_filtered['SMA1'] > data_filtered['SMA2']),
+                ('Cruce entre SMA 1, 2 y 3', (data_filtered['SMA1'] > data_filtered['SMA2']) & (data_filtered['SMA2'] > data_filtered['SMA3']))
             ]
             
             for strategy_name, signal_condition in strategies:
                 # Generar señales
                 data_filtered['Signal'] = 0
-                data_filtered['Signal'][short_window:] = np.where(signal_condition[short_window:], 1, 0)
+                data_filtered.loc[signal_condition, 'Signal'] = 1
                 data_filtered['Position'] = data_filtered['Signal'].diff()
                 
                 # Inicializar variables para seguimiento de operaciones
@@ -122,13 +127,10 @@ def backtest_strategy(tickers, start_date, end_date, short_window, medium_window
                 
                 # Graficar
                 plt.figure(figsize=(10, 6))
-                plt.plot(data.index, data['Close'], label='Precio', alpha=0.7)
-                plt.plot(data.index, data['SMA1'], label='SMA1', alpha=0.7)
-                plt.plot(data.index, data['SMA2'], label='SMA2', alpha=0.7)
-                plt.plot(data.index, data['SMA3'], label='SMA3', alpha=0.7)
-                
-                # Ajustar el rango de fechas en el gráfico para que comience desde el inicio del período especificado
-                plt.xlim(start_date, end_date)
+                plt.plot(data_filtered.index, data_filtered['Close'], label='Precio', alpha=0.7)
+                plt.plot(data_filtered.index, data_filtered['SMA1'], label='SMA1', alpha=0.7)
+                plt.plot(data_filtered.index, data_filtered['SMA2'], label='SMA2', alpha=0.7)
+                plt.plot(data_filtered.index, data_filtered['SMA3'], label='SMA3', alpha=0.7)
                 
                 # Señales de compra y venta
                 buy_signals = data_filtered[data_filtered['Position'] == 1]
@@ -164,8 +166,8 @@ if __name__ == "__main__":
     end_date = st.date_input("Fecha de Fin", datetime.today().date())
     short_window = st.slider("Ventana Corta", 1, 60, 20)
     medium_window = st.slider("Ventana Media", 1, 100, 50)
-    long_window = st.slider("Ventana Larga", 1, 60, 200)
-    start_with_position = st.checkbox("Empezar con Posición Inicial", value=False)
+    long_window = st.slider("Ventana Larga", 1, 200, 200)
+    start_with_position = st.checkbox("Empezar con Posición", value=False)
     
     if st.button("Ejecutar Estrategia"):
         results = backtest_strategy(tickers, start_date, end_date, short_window, medium_window, long_window, start_with_position)
