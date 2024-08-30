@@ -168,7 +168,7 @@ def backtest_strategy(tickers, start_date, end_date, short_window, medium_window
                 explanation = strategy_explanations.get(strategy_name, "No hay explicación disponible.")
                 st.write(f"### Explicación de la Estrategia: {strategy_name}")
                 st.write(explanation)
-            
+        
         except Exception as e:
             st.error(f"Error al procesar el ticker {ticker}: {e}")
     
@@ -187,7 +187,7 @@ st.write("Selecciona los tickers, fechas y parámetros para el backtest de las e
 tickers_input = st.text_input("Ingresa los tickers separados por comas", "MSFT, AAPL, TSLA")
 tickers = [ticker.strip().upper() for ticker in tickers_input.split(',')]
 
-start_date = st.date_input("Fecha de inicio", value=datetime(1980, 1, 1), min_value=datetime(1980, 1, 1))
+start_date = st.date_input("Fecha de inicio", value=datetime(2023, 1, 1), min_value=datetime(1980, 1, 1), max_value=datetime(2024, 8, 31))
 end_date = st.date_input("Fecha de fin", value=datetime.today())
 short_window = st.slider("Periodo de SMA 1", min_value=1, max_value=50, value=20)
 medium_window = st.slider("Periodo de SMA 2", min_value=1, max_value=50, value=50)
