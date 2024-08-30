@@ -36,52 +36,52 @@ def backtest_strategy(tickers, start_date, end_date, short_window, medium_window
                 continue
             
             # Filtrar datos para el período especificado por el usuario
-            data = data.loc[start_date:end_date]
-            if data.empty:
+            data_filtered = data.loc[start_date:end_date]
+            if data_filtered.empty:
                 st.error(f"No se obtuvieron datos para el período especificado para el ticker {ticker}.")
                 continue
             
-            # Calcular medias móviles
+            # Calcular medias móviles sobre los datos extendidos
             data['SMA1'] = data['Close'].rolling(window=short_window, min_periods=1).mean()
             data['SMA2'] = data['Close'].rolling(window=medium_window, min_periods=1).mean()
             data['SMA3'] = data['Close'].rolling(window=long_window, min_periods=1).mean()
             
             # Rendimiento de Compra y Mantenimiento
-            start_price = data['Close'].iloc[0]
-            end_price = data['Close'].iloc[-1]
+            start_price = data_filtered['Close'].iloc[0]
+            end_price = data_filtered['Close'].iloc[-1]
             buy_and_hold_return = calculate_buy_and_hold_return(start_price, end_price)
             
             strategies = [
-                ('Cruce entre el precio y SMA 1', data['Close'] > data['SMA1']),
+                ('Cruce entre el precio y SMA 1', data_filtered['Close'] > data['SMA1']),
                 ('Cruce entre SMA 1 y SMA 2', data['SMA1'] > data['SMA2']),
                 ('Cruce entre SMA 1, 2 y 3', (data['SMA1'] > data['SMA2']) & (data['SMA2'] > data['SMA3']))
             ]
             
             for strategy_name, signal_condition in strategies:
                 # Generar señales
-                data['Signal'] = 0
-                data['Signal'][short_window:] = np.where(signal_condition[short_window:], 1, 0)
-                data['Position'] = data['Signal'].diff()
+                data_filtered['Signal'] = 0
+                data_filtered['Signal'][short_window:] = np.where(signal_condition[short_window:], 1, 0)
+                data_filtered['Position'] = data_filtered['Signal'].diff()
                 
                 # Inicializar variables para seguimiento de operaciones
                 trades = []
                 current_position = 1 if start_with_position else 0
-                entry_price = data['Close'].iloc[0] if start_with_position else 0
+                entry_price = data_filtered['Close'].iloc[0] if start_with_position else 0
                 
                 # Rastrear operaciones basadas en señales
-                for i in range(1, len(data)):
-                    if data['Position'].iloc[i] == 1 and current_position == 0:  # Señal de compra
-                        entry_price = data['Close'].iloc[i]
+                for i in range(1, len(data_filtered)):
+                    if data_filtered['Position'].iloc[i] == 1 and current_position == 0:  # Señal de compra
+                        entry_price = data_filtered['Close'].iloc[i]
                         current_position = 1
-                    elif data['Position'].iloc[i] == -1 and current_position == 1:  # Señal de venta
-                        exit_price = data['Close'].iloc[i]
+                    elif data_filtered['Position'].iloc[i] == -1 and current_position == 1:  # Señal de venta
+                        exit_price = data_filtered['Close'].iloc[i]
                         trade_return = (exit_price - entry_price) / entry_price
                         trades.append(trade_return)
                         current_position = 0
                 
                 # Manejar posición restante
                 if current_position == 1:
-                    final_price = data['Close'].iloc[-1]
+                    final_price = data_filtered['Close'].iloc[-1]
                     trade_return = (final_price - entry_price) / entry_price
                     trades.append(trade_return)
                 
@@ -122,14 +122,17 @@ def backtest_strategy(tickers, start_date, end_date, short_window, medium_window
                 
                 # Graficar
                 plt.figure(figsize=(10, 6))
-                plt.plot(data.index, data['Close'], label='Precio')
+                plt.plot(data.index, data['Close'], label='Precio', alpha=0.7)
                 plt.plot(data.index, data['SMA1'], label='SMA1', alpha=0.7)
                 plt.plot(data.index, data['SMA2'], label='SMA2', alpha=0.7)
                 plt.plot(data.index, data['SMA3'], label='SMA3', alpha=0.7)
                 
+                # Ajustar el rango de fechas en el gráfico para que comience desde el inicio del período especificado
+                plt.xlim(start_date, end_date)
+                
                 # Señales de compra y venta
-                buy_signals = data[data['Position'] == 1]
-                sell_signals = data[data['Position'] == -1]
+                buy_signals = data_filtered[data_filtered['Position'] == 1]
+                sell_signals = data_filtered[data_filtered['Position'] == -1]
                 plt.scatter(buy_signals.index, buy_signals['Close'], marker='^', color='g', label='Señal de Compra', s=100)
                 plt.scatter(sell_signals.index, sell_signals['Close'], marker='v', color='r', label='Señal de Venta', s=100)
                 
@@ -164,8 +167,9 @@ if __name__ == "__main__":
     long_window = st.slider("Ventana Larga", 1, 60, 200)
     start_with_position = st.checkbox("Empezar con Posición Inicial", value=False)
     
-    if st.button("Ejecutar Prueba"):
+    if st.button("Ejecutar Estrategia"):
         results = backtest_strategy(tickers, start_date, end_date, short_window, medium_window, long_window, start_with_position)
-        results_df = pd.DataFrame(results)
-        st.write(results_df)
-        st.write("Resultados calculados con éxito.")
+        if results:
+            df_results = pd.DataFrame(results)
+            st.write("Resultados de la Estrategia de Trading:")
+            st.dataframe(df_results)
