@@ -1,20 +1,20 @@
 import yfinance as yf
 import pandas as pd
 import numpy as np
-import matplotlib.pyplot as plt
+import plotly.graph_objects as go
 import streamlit as st
 from io import BytesIO
 from datetime import datetime
 
-# Función para calcular el rendimiento de compra y mantenimiento
+# Function to calculate buy-and-hold return
 def calculate_buy_and_hold_return(start_price, end_price):
     return (end_price - start_price) / start_price
 
-# Función para calcular el rendimiento anualizado
+# Function to calculate annualized return
 def calculate_annualized_return(total_return_percent, days):
     return ((1 + total_return_percent / 100) ** (365 / days) - 1) * 100
 
-# Función para calcular el rendimiento anualizado de compra y mantenimiento
+# Function to calculate annualized buy-and-hold return
 def calculate_annualized_buy_and_hold_return(start_price, end_price, days):
     buy_and_hold_return = calculate_buy_and_hold_return(start_price, end_price)
     return calculate_annualized_return(buy_and_hold_return * 100, days)
@@ -24,18 +24,18 @@ def backtest_strategy(tickers, start_date, end_date, short_window, medium_window
     
     for ticker in tickers:
         try:
-            # Obtener datos históricos
+            # Fetch historical data
             data = yf.download(ticker, start=start_date, end=end_date)
             if data.empty:
                 st.error(f"No se obtuvieron datos para el ticker {ticker}.")
                 continue
             
-            # Calcular medias móviles
+            # Calculate moving averages
             data['SMA1'] = data['Close'].rolling(window=short_window, min_periods=1).mean()
             data['SMA2'] = data['Close'].rolling(window=medium_window, min_periods=1).mean()
             data['SMA3'] = data['Close'].rolling(window=long_window, min_periods=1).mean()
             
-            # Rendimiento de Compra y Mantenimiento
+            # Buy-and-Hold Return
             start_price = data['Close'].iloc[0]
             end_price = data['Close'].iloc[-1]
             buy_and_hold_return = calculate_buy_and_hold_return(start_price, end_price)
@@ -47,100 +47,95 @@ def backtest_strategy(tickers, start_date, end_date, short_window, medium_window
             ]
             
             for strategy_name, signal_condition in strategies:
-                # Generar señales
+                # Generate signals
                 data['Signal'] = 0
                 data['Signal'][short_window:] = np.where(signal_condition[short_window:], 1, 0)
                 data['Position'] = data['Signal'].diff()
                 
-                # Inicializar variables para seguimiento de operaciones
+                # Initialize variables for trade tracking
                 trades = []
                 current_position = 1 if start_with_position else 0
                 entry_price = data['Close'].iloc[0] if start_with_position else 0
                 
-                # Rastrear operaciones basadas en señales
+                # Track trades based on signals
                 for i in range(1, len(data)):
-                    if data['Position'].iloc[i] == 1 and current_position == 0:  # Señal de compra
+                    if data['Position'].iloc[i] == 1 and current_position == 0:  # Buy signal
                         entry_price = data['Close'].iloc[i]
                         current_position = 1
-                    elif data['Position'].iloc[i] == -1 and current_position == 1:  # Señal de venta
+                    elif data['Position'].iloc[i] == -1 and current_position == 1:  # Sell signal
                         exit_price = data['Close'].iloc[i]
                         trade_return = (exit_price - entry_price) / entry_price
                         trades.append(trade_return)
                         current_position = 0
                 
-                # Manejar posición restante
+                # Handle remaining position
                 if current_position == 1:
                     final_price = data['Close'].iloc[-1]
                     trade_return = (final_price - entry_price) / entry_price
                     trades.append(trade_return)
                 
-                # Calcular rendimiento total de todas las operaciones
+                # Calculate total return from all trades
                 total_return = sum(trades)
                 
-                # Calcular el número de días en el período de prueba
+                # Calculate the number of days in the backtest period
                 days = (pd.to_datetime(end_date) - pd.to_datetime(start_date)).days
                 if days == 0:
-                    days = 1  # Evitar división por cero
+                    days = 1  # Avoid division by zero
                 
-                # Calcular rendimientos anualizados
+                # Calculate annualized returns
                 annualized_return = calculate_annualized_return(total_return * 100, days)
                 annualized_buy_and_hold_return = calculate_annualized_buy_and_hold_return(start_price, end_price, days)
                 
-                # Calcular ratios
+                # Calculate ratios
                 if buy_and_hold_return != 0:
                     total_to_buy_and_hold_ratio = total_return / buy_and_hold_return
                 else:
-                    total_to_buy_and_hold_ratio = np.nan  # Manejar división por cero
+                    total_to_buy_and_hold_ratio = np.nan  # Handle division by zero
 
                 if annualized_buy_and_hold_return != 0:
                     annualized_to_buy_and_hold_ratio = annualized_return / annualized_buy_and_hold_return
                 else:
-                    annualized_to_buy_and_hold_ratio = np.nan  # Manejar división por cero
+                    annualized_to_buy_and_hold_ratio = np.nan  # Handle division by zero
                 
-                # Agregar resultado para este ticker y estrategia
+                # Append result for this ticker and strategy
                 all_results.append({
                     'Ticker': ticker,
                     'Estrategia': strategy_name,
                     'Rendimiento Total (%)': total_return * 100,
                     'Rendimiento Anualizado (%)': annualized_return,
-                    'Rendimiento de Compra y Mantenimiento (%)': buy_and_hold_return*100,
+                    'Rendimiento de Compra y Mantenimiento (%)': buy_and_hold_return * 100,
                     'Rendimiento Anualizado de Compra y Mantenimiento (%)': annualized_buy_and_hold_return,
                     'Ratio Total-a-Compra y Mantenimiento': total_to_buy_and_hold_ratio,
                     'Ratio Anualizado-a-Compra y Mantenimiento': annualized_to_buy_and_hold_ratio
                 })
                 
-                # Graficar
-                plt.figure(figsize=(10, 6))
-                plt.plot(data.index, data['Close'], label='Precio')
-                plt.plot(data.index, data['SMA1'], label='SMA1', alpha=0.7)
-                plt.plot(data.index, data['SMA2'], label='SMA2', alpha=0.7)
-                plt.plot(data.index, data['SMA3'], label='SMA3', alpha=0.7)
+                # Plotting with Plotly
+                fig = go.Figure()
+                fig.add_trace(go.Scatter(x=data.index, y=data['Close'], mode='lines', name='Precio'))
+                fig.add_trace(go.Scatter(x=data.index, y=data['SMA1'], mode='lines', name='SMA1', line=dict(dash='dash')))
+                fig.add_trace(go.Scatter(x=data.index, y=data['SMA2'], mode='lines', name='SMA2', line=dict(dash='dash')))
+                fig.add_trace(go.Scatter(x=data.index, y=data['SMA3'], mode='lines', name='SMA3', line=dict(dash='dash')))
                 
-                # Señales de compra y venta
+                # Buy and sell signals
                 buy_signals = data[data['Position'] == 1]
                 sell_signals = data[data['Position'] == -1]
-                plt.scatter(buy_signals.index, buy_signals['Close'], marker='^', color='g', label='Señal de Compra', s=100)
-                plt.scatter(sell_signals.index, sell_signals['Close'], marker='v', color='r', label='Señal de Venta', s=100)
+                fig.add_trace(go.Scatter(x=buy_signals.index, y=buy_signals['Close'], mode='markers', name='Señal de Compra', marker=dict(color='green', symbol='triangle-up', size=10)))
+                fig.add_trace(go.Scatter(x=sell_signals.index, y=sell_signals['Close'], mode='markers', name='Señal de Venta', marker=dict(color='red', symbol='triangle-down', size=10)))
                 
-                plt.title(f'{ticker} - {strategy_name}')
-                plt.xlabel('Fecha')
-                plt.ylabel('Precio')
-                plt.legend()
-                plt.grid(True)
+                fig.update_layout(title=f'{ticker} - {strategy_name}',
+                                  xaxis_title='Fecha',
+                                  yaxis_title='Precio',
+                                  legend_title='Leyenda',
+                                  template='plotly_dark')
                 
-                # Guardar el gráfico en un objeto BytesIO
-                buf = BytesIO()
-                plt.savefig(buf, format="png")
-                buf.seek(0)
-                st.image(buf, caption=f"Gráfico de {ticker} - {strategy_name}")
-                plt.close()
+                st.plotly_chart(fig, use_container_width=True)
         
         except Exception as e:
             st.error(f"Ocurrió un error para el ticker {ticker}: {e}")
     
     return all_results
 
-# Ejemplo de uso
+# Example usage
 if __name__ == "__main__":
     st.title("Prueba de Estrategia de Trading")
     
