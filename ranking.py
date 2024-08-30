@@ -4,7 +4,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import streamlit as st
 from io import BytesIO
-from datetime import datetime, timedelta
+from datetime import datetime
 
 # Función para calcular el rendimiento de compra y mantenimiento
 def calculate_buy_and_hold_return(start_price, end_price):
@@ -12,8 +12,6 @@ def calculate_buy_and_hold_return(start_price, end_price):
 
 # Función para calcular el rendimiento anualizado
 def calculate_annualized_return(total_return_percent, days):
-    if days == 0:
-        return np.nan  # Evitar división por cero
     return ((1 + total_return_percent / 100) ** (365 / days) - 1) * 100
 
 # Función para calcular el rendimiento anualizado de compra y mantenimiento
@@ -21,56 +19,48 @@ def calculate_annualized_buy_and_hold_return(start_price, end_price, days):
     buy_and_hold_return = calculate_buy_and_hold_return(start_price, end_price)
     return calculate_annualized_return(buy_and_hold_return * 100, days)
 
-def backtest_strategy(tickers, start_date, end_date, short_window, medium_window, long_window, start_with_position, buffer_days=200):
+def backtest_strategy(tickers, start_date, end_date, short_window, medium_window, long_window, start_with_position):
     all_results = []
-    
-    # Convert dates to Timestamp for consistent comparison
-    start_date = pd.Timestamp(start_date)
-    end_date = pd.Timestamp(end_date)
     
     for ticker in tickers:
         try:
-            # Establecer la fecha de inicio extendida para el cálculo de SMAs
-            extended_start_date = (start_date - timedelta(days=buffer_days)).strftime('%Y-%m-%d')
-            
             # Obtener datos históricos
-            data = yf.download(ticker, start=extended_start_date, end=end_date + timedelta(days=1))
+            data = yf.download(ticker, start=start_date, end=end_date)
             if data.empty:
                 st.error(f"No se obtuvieron datos para el ticker {ticker}.")
                 continue
             
-            # Filtrar datos para el período especificado por el usuario
-            data_filtered = data.loc[start_date:end_date]
-            if data_filtered.empty:
-                st.error(f"No se obtuvieron datos para el período especificado para el ticker {ticker}.")
-                continue
+            # Ajustar fechas para incluir buffer
+            buffer_start_date = pd.to_datetime(start_date) - pd.Timedelta(days=max(long_window, medium_window, short_window))
+            data = yf.download(ticker, start=buffer_start_date, end=end_date)
+            data = data.loc[start_date:end_date]
             
-            # Calcular medias móviles sobre los datos extendidos
+            # Calcular medias móviles
             data['SMA1'] = data['Close'].rolling(window=short_window, min_periods=1).mean()
             data['SMA2'] = data['Close'].rolling(window=medium_window, min_periods=1).mean()
             data['SMA3'] = data['Close'].rolling(window=long_window, min_periods=1).mean()
             
-            # Filtrar SMAs para que coincidan con el período especificado
-            data_filtered['SMA1'] = data['SMA1'].loc[start_date:end_date]
-            data_filtered['SMA2'] = data['SMA2'].loc[start_date:end_date]
-            data_filtered['SMA3'] = data['SMA3'].loc[start_date:end_date]
-            
             # Rendimiento de Compra y Mantenimiento
-            start_price = data_filtered['Close'].iloc[0]
-            end_price = data_filtered['Close'].iloc[-1]
+            start_price = data['Close'].iloc[0]
+            end_price = data['Close'].iloc[-1]
             buy_and_hold_return = calculate_buy_and_hold_return(start_price, end_price)
             
             strategies = [
-                ('Cruce entre el precio y SMA 1', data_filtered['Close'] > data_filtered['SMA1']),
-                ('Cruce entre SMA 1 y SMA 2', data_filtered['SMA1'] > data_filtered['SMA2']),
-                ('Cruce entre SMA 1, 2 y 3', (data_filtered['SMA1'] > data_filtered['SMA2']) & (data_filtered['SMA2'] > data_filtered['SMA3']))
+                ('Cruce entre el precio y SMA 1', data['Close'] > data['SMA1']),
+                ('Cruce entre SMA 1 y SMA 2', data['SMA1'] > data['SMA2']),
+                ('Cruce entre SMA 1, 2 y 3', (data['SMA1'] > data['SMA2']) & (data['SMA2'] > data['SMA3']))
             ]
             
             for strategy_name, signal_condition in strategies:
                 # Generar señales
-                data_filtered['Signal'] = 0
-                data_filtered.loc[signal_condition, 'Signal'] = 1
-                data_filtered['Position'] = data_filtered['Signal'].diff()
+                data['Signal'] = 0
+                data.loc[signal_condition, 'Signal'] = 1
+                data['Position'] = data['Signal'].diff()
+                
+                # Filtrar señales y trades dentro del rango de fechas seleccionado
+                data_filtered = data.loc[start_date:end_date]
+                buy_signals = data_filtered[data_filtered['Position'] == 1]
+                sell_signals = data_filtered[data_filtered['Position'] == -1]
                 
                 # Inicializar variables para seguimiento de operaciones
                 trades = []
@@ -79,9 +69,6 @@ def backtest_strategy(tickers, start_date, end_date, short_window, medium_window
                 
                 # Rastrear operaciones basadas en señales
                 for i in range(1, len(data_filtered)):
-                    if data_filtered.index[i] < start_date or data_filtered.index[i] > end_date:
-                        continue
-                    
                     if data_filtered['Position'].iloc[i] == 1 and current_position == 0:  # Señal de compra
                         entry_price = data_filtered['Close'].iloc[i]
                         current_position = 1
@@ -101,8 +88,8 @@ def backtest_strategy(tickers, start_date, end_date, short_window, medium_window
                 total_return = sum(trades)
                 
                 # Calcular el número de días en el período de prueba
-                days = (end_date - start_date).days
-                if days <= 0:
+                days = (pd.to_datetime(end_date) - pd.to_datetime(start_date)).days
+                if days == 0:
                     days = 1  # Evitar división por cero
                 
                 # Calcular rendimientos anualizados
@@ -126,7 +113,7 @@ def backtest_strategy(tickers, start_date, end_date, short_window, medium_window
                     'Estrategia': strategy_name,
                     'Rendimiento Total (%)': total_return * 100,
                     'Rendimiento Anualizado (%)': annualized_return,
-                    'Rendimiento de Compra y Mantenimiento (%)': buy_and_hold_return * 100,
+                    'Rendimiento de Compra y Mantenimiento (%)': buy_and_hold_return*100,
                     'Rendimiento Anualizado de Compra y Mantenimiento (%)': annualized_buy_and_hold_return,
                     'Ratio Total-a-Compra y Mantenimiento': total_to_buy_and_hold_ratio,
                     'Ratio Anualizado-a-Compra y Mantenimiento': annualized_to_buy_and_hold_ratio
@@ -134,10 +121,10 @@ def backtest_strategy(tickers, start_date, end_date, short_window, medium_window
                 
                 # Graficar
                 plt.figure(figsize=(10, 6))
-                plt.plot(data_filtered.index, data_filtered['Close'], label='Precio', alpha=0.7)
-                plt.plot(data_filtered.index, data_filtered['SMA1'], label='SMA1', alpha=0.7)
-                plt.plot(data_filtered.index, data_filtered['SMA2'], label='SMA2', alpha=0.7)
-                plt.plot(data_filtered.index, data_filtered['SMA3'], label='SMA3', alpha=0.7)
+                plt.plot(data.index, data['Close'], label='Precio')
+                plt.plot(data.index, data['SMA1'], label='SMA1', alpha=0.7)
+                plt.plot(data.index, data['SMA2'], label='SMA2', alpha=0.7)
+                plt.plot(data.index, data['SMA3'], label='SMA3', alpha=0.7)
                 
                 # Señales de compra y venta
                 buy_signals = data_filtered[data_filtered['Position'] == 1]
@@ -150,6 +137,17 @@ def backtest_strategy(tickers, start_date, end_date, short_window, medium_window
                 plt.ylabel('Precio')
                 plt.legend()
                 plt.grid(True)
+                
+                # Agregar texto explicativo para señales
+                explanation = ""
+                if strategy_name == 'Cruce entre el precio y SMA 1':
+                    explanation = "Las señales de compra se generan cuando el precio está por encima de SMA1. Las señales de venta se generan cuando el precio está por debajo de SMA1."
+                elif strategy_name == 'Cruce entre SMA 1 y SMA 2':
+                    explanation = "Las señales de compra se generan cuando SMA1 está por encima de SMA2. Las señales de venta se generan cuando SMA1 está por debajo de SMA2."
+                elif strategy_name == 'Cruce entre SMA 1, 2 y 3':
+                    explanation = "Las señales de compra se generan cuando SMA1 está por encima de SMA2 y SMA2 está por encima de SMA3. Las señales de venta se generan cuando cualquiera de las SMA cruza a la baja."
+
+                plt.figtext(0.5, -0.1, explanation, wrap=True, horizontalalignment='center', fontsize=12)
                 
                 # Guardar el gráfico en un objeto BytesIO
                 buf = BytesIO()
@@ -174,11 +172,9 @@ if __name__ == "__main__":
     short_window = st.slider("Ventana Corta", 1, 60, 20)
     medium_window = st.slider("Ventana Media", 1, 100, 50)
     long_window = st.slider("Ventana Larga", 1, 200, 100)
-    start_with_position = st.checkbox("Empezar con Posición", value=False)
+    start_with_position = st.checkbox("Comenzar con posición abierta", value=False)
     
-    if st.button("Ejecutar Estrategia"):
+    if st.button("Ejecutar Backtest"):
         results = backtest_strategy(tickers, start_date, end_date, short_window, medium_window, long_window, start_with_position)
-        if results:
-            df_results = pd.DataFrame(results)
-            st.write("Resultados de la Estrategia de Trading:")
-            st.dataframe(df_results)
+        results_df = pd.DataFrame(results)
+        st.write(results_df)
