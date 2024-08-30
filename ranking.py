@@ -4,7 +4,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import streamlit as st
 from io import BytesIO
-from datetime import datetime
+from datetime import datetime, timedelta
 
 # Función para calcular el rendimiento de compra y mantenimiento
 def calculate_buy_and_hold_return(start_price, end_price):
@@ -21,15 +21,24 @@ def calculate_annualized_buy_and_hold_return(start_price, end_price, days):
     buy_and_hold_return = calculate_buy_and_hold_return(start_price, end_price)
     return calculate_annualized_return(buy_and_hold_return * 100, days)
 
-def backtest_strategy(tickers, start_date, end_date, short_window, medium_window, long_window, start_with_position):
+def backtest_strategy(tickers, start_date, end_date, short_window, medium_window, long_window, start_with_position, buffer_days=200):
     all_results = []
     
     for ticker in tickers:
         try:
+            # Establecer la fecha de inicio extendida para el cálculo de SMAs
+            extended_start_date = (pd.to_datetime(start_date) - timedelta(days=buffer_days)).strftime('%Y-%m-%d')
+            
             # Obtener datos históricos
-            data = yf.download(ticker, start=start_date, end=end_date)
+            data = yf.download(ticker, start=extended_start_date, end=end_date)
             if data.empty:
                 st.error(f"No se obtuvieron datos para el ticker {ticker}.")
+                continue
+            
+            # Filtrar datos para el período especificado por el usuario
+            data = data.loc[start_date:end_date]
+            if data.empty:
+                st.error(f"No se obtuvieron datos para el período especificado para el ticker {ticker}.")
                 continue
             
             # Calcular medias móviles
