@@ -12,6 +12,8 @@ def calculate_buy_and_hold_return(start_price, end_price):
 
 # Función para calcular el rendimiento anualizado
 def calculate_annualized_return(total_return_percent, days):
+    if days == 0:
+        return np.nan  # Evitar división por cero
     return ((1 + total_return_percent / 100) ** (365 / days) - 1) * 100
 
 # Función para calcular el rendimiento anualizado de compra y mantenimiento
@@ -41,9 +43,9 @@ def backtest_strategy(tickers, start_date, end_date, short_window, medium_window
             buy_and_hold_return = calculate_buy_and_hold_return(start_price, end_price)
             
             strategies = [
-                ('Cruz entre el precio y SMA 1', data['Close'] > data['SMA1']),
-                ('Cruz entre SMA 1 y SMA 2', data['SMA1'] > data['SMA2']),
-                ('Cruz entre SMA 1, 2 y 3', (data['SMA1'] > data['SMA2']) & (data['SMA2'] > data['SMA3']))
+                ('Cruce entre el precio y SMA 1', data['Close'] > data['SMA1']),
+                ('Cruce entre SMA 1 y SMA 2', data['SMA1'] > data['SMA2']),
+                ('Cruce entre SMA 1, 2 y 3', (data['SMA1'] > data['SMA2']) & (data['SMA2'] > data['SMA3']))
             ]
             
             for strategy_name, signal_condition in strategies:
@@ -79,7 +81,7 @@ def backtest_strategy(tickers, start_date, end_date, short_window, medium_window
                 
                 # Calcular el número de días en el período de prueba
                 days = (pd.to_datetime(end_date) - pd.to_datetime(start_date)).days
-                if days == 0:
+                if days <= 0:
                     days = 1  # Evitar división por cero
                 
                 # Calcular rendimientos anualizados
@@ -103,7 +105,7 @@ def backtest_strategy(tickers, start_date, end_date, short_window, medium_window
                     'Estrategia': strategy_name,
                     'Rendimiento Total (%)': total_return * 100,
                     'Rendimiento Anualizado (%)': annualized_return,
-                    'Rendimiento de Compra y Mantenimiento (%)': buy_and_hold_return*100,
+                    'Rendimiento de Compra y Mantenimiento (%)': buy_and_hold_return * 100,
                     'Rendimiento Anualizado de Compra y Mantenimiento (%)': annualized_buy_and_hold_return,
                     'Ratio Total-a-Compra y Mantenimiento': total_to_buy_and_hold_ratio,
                     'Ratio Anualizado-a-Compra y Mantenimiento': annualized_to_buy_and_hold_ratio
