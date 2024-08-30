@@ -24,13 +24,17 @@ def calculate_annualized_buy_and_hold_return(start_price, end_price, days):
 def backtest_strategy(tickers, start_date, end_date, short_window, medium_window, long_window, start_with_position, buffer_days=200):
     all_results = []
     
+    # Convert dates to Timestamp for consistent comparison
+    start_date = pd.Timestamp(start_date)
+    end_date = pd.Timestamp(end_date)
+    
     for ticker in tickers:
         try:
             # Establecer la fecha de inicio extendida para el cálculo de SMAs
-            extended_start_date = (pd.to_datetime(start_date) - timedelta(days=buffer_days)).strftime('%Y-%m-%d')
+            extended_start_date = (start_date - timedelta(days=buffer_days)).strftime('%Y-%m-%d')
             
             # Obtener datos históricos
-            data = yf.download(ticker, start=extended_start_date, end=end_date)
+            data = yf.download(ticker, start=extended_start_date, end=end_date + timedelta(days=1))
             if data.empty:
                 st.error(f"No se obtuvieron datos para el ticker {ticker}.")
                 continue
@@ -97,7 +101,7 @@ def backtest_strategy(tickers, start_date, end_date, short_window, medium_window
                 total_return = sum(trades)
                 
                 # Calcular el número de días en el período de prueba
-                days = (pd.to_datetime(end_date) - pd.to_datetime(start_date)).days
+                days = (end_date - start_date).days
                 if days <= 0:
                     days = 1  # Evitar división por cero
                 
