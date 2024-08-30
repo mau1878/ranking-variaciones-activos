@@ -120,11 +120,11 @@ def backtest_strategy(tickers, start_date, end_date, short_window, medium_window
                 })
                 
                 # Graficar
-                plt.figure(figsize=(12, 8))
-                plt.plot(data.index, data['Close'], label='Precio', color='blue')
-                plt.plot(data.index, data['SMA1'], label='SMA1', color='orange', alpha=0.7)
-                plt.plot(data.index, data['SMA2'], label='SMA2', color='green', alpha=0.7)
-                plt.plot(data.index, data['SMA3'], label='SMA3', color='red', alpha=0.7)
+                plt.figure(figsize=(10, 6))
+                plt.plot(data.index, data['Close'], label='Precio')
+                plt.plot(data.index, data['SMA1'], label='SMA1', alpha=0.7)
+                plt.plot(data.index, data['SMA2'], label='SMA2', alpha=0.7)
+                plt.plot(data.index, data['SMA3'], label='SMA3', alpha=0.7)
                 
                 # Señales de compra y venta
                 buy_signals = data_filtered[data_filtered['Position'] == 1]
@@ -141,18 +141,17 @@ def backtest_strategy(tickers, start_date, end_date, short_window, medium_window
                 # Agregar texto explicativo para señales
                 explanation = ""
                 if strategy_name == 'Cruce entre el precio y SMA 1':
-                    explanation = "Compra: El precio está por encima de la SMA1.\nVenta: El precio está por debajo de la SMA1."
+                    explanation = "Las señales de compra se generan cuando el precio está por encima de SMA1. Las señales de venta se generan cuando el precio está por debajo de SMA1."
                 elif strategy_name == 'Cruce entre SMA 1 y SMA 2':
-                    explanation = "Compra: SMA1 está por encima de SMA2.\nVenta: SMA1 está por debajo de SMA2."
+                    explanation = "Las señales de compra se generan cuando SMA1 está por encima de SMA2. Las señales de venta se generan cuando SMA1 está por debajo de SMA2."
                 elif strategy_name == 'Cruce entre SMA 1, 2 y 3':
-                    explanation = "Compra: SMA1 está por encima de SMA2 y SMA2 está por encima de SMA3.\nVenta: Cualquiera de las SMA cruza a la baja."
+                    explanation = "Las señales de compra se generan cuando SMA1 está por encima de SMA2 y SMA2 está por encima de SMA3. Las señales de venta se generan cuando cualquiera de las SMA cruza a la baja."
 
-                # Añadir texto explicativo al gráfico
-                plt.figtext(0.5, -0.15, explanation, wrap=True, horizontalalignment='center', fontsize=12, bbox={"facecolor": "white", "alpha": 0.8, "pad": 10})
+                plt.figtext(0.5, -0.1, explanation, wrap=True, horizontalalignment='center', fontsize=12)
                 
                 # Guardar el gráfico en un objeto BytesIO
                 buf = BytesIO()
-                plt.savefig(buf, format="png", bbox_inches='tight')
+                plt.savefig(buf, format="png")
                 buf.seek(0)
                 st.image(buf, caption=f"Gráfico de {ticker} - {strategy_name}")
                 plt.close()
@@ -168,10 +167,10 @@ if __name__ == "__main__":
     
     tickers = st.text_input("Ingrese tickers (separados por comas):", "AAPL, MSFT").split(',')
     tickers = [ticker.strip().upper() for ticker in tickers]
-    start_date = st.date_input("Fecha de Inicio", datetime(2023, 1, 1))
-    end_date = st.date_input("Fecha de Fin", datetime(2024, 1, 1))
-    short_window = st.slider("Ventana Corta", 1, 100, 20)
-    medium_window = st.slider("Ventana Media", 1, 200, 50)
+    start_date = st.date_input("Fecha de Inicio", pd.to_datetime('2023-01-01'))
+    end_date = st.date_input("Fecha de Fin", datetime.today().date())
+    short_window = st.slider("Ventana Corta", 1, 60, 20)
+    medium_window = st.slider("Ventana Media", 1, 100, 50)
     long_window = st.slider("Ventana Larga", 1, 200, 100)
     start_with_position = st.checkbox("Comenzar con posición abierta", value=False)
     
