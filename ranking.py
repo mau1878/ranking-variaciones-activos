@@ -3,7 +3,6 @@ import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
 import streamlit as st
-from io import BytesIO
 from datetime import datetime
 
 # Function to calculate buy-and-hold return
@@ -110,25 +109,28 @@ def backtest_strategy(tickers, start_date, end_date, short_window, medium_window
                 })
                 
                 # Plotting with Plotly
-                fig = go.Figure()
-                fig.add_trace(go.Scatter(x=data.index, y=data['Close'], mode='lines', name='Precio'))
-                fig.add_trace(go.Scatter(x=data.index, y=data['SMA1'], mode='lines', name='SMA1', line=dict(dash='dash')))
-                fig.add_trace(go.Scatter(x=data.index, y=data['SMA2'], mode='lines', name='SMA2', line=dict(dash='dash')))
-                fig.add_trace(go.Scatter(x=data.index, y=data['SMA3'], mode='lines', name='SMA3', line=dict(dash='dash')))
-                
-                # Buy and sell signals
-                buy_signals = data[data['Position'] == 1]
-                sell_signals = data[data['Position'] == -1]
-                fig.add_trace(go.Scatter(x=buy_signals.index, y=buy_signals['Close'], mode='markers', name='Señal de Compra', marker=dict(color='green', symbol='triangle-up', size=10)))
-                fig.add_trace(go.Scatter(x=sell_signals.index, y=sell_signals['Close'], mode='markers', name='Señal de Venta', marker=dict(color='red', symbol='triangle-down', size=10)))
-                
-                fig.update_layout(title=f'{ticker} - {strategy_name}',
-                                  xaxis_title='Fecha',
-                                  yaxis_title='Precio',
-                                  legend_title='Leyenda',
-                                  template='plotly_dark')
-                
-                st.plotly_chart(fig, use_container_width=True)
+                try:
+                    fig = go.Figure()
+                    fig.add_trace(go.Scatter(x=data.index, y=data['Close'], mode='lines', name='Precio'))
+                    fig.add_trace(go.Scatter(x=data.index, y=data['SMA1'], mode='lines', name='SMA1', line=dict(dash='dash')))
+                    fig.add_trace(go.Scatter(x=data.index, y=data['SMA2'], mode='lines', name='SMA2', line=dict(dash='dash')))
+                    fig.add_trace(go.Scatter(x=data.index, y=data['SMA3'], mode='lines', name='SMA3', line=dict(dash='dash')))
+                    
+                    # Buy and sell signals
+                    buy_signals = data[data['Position'] == 1]
+                    sell_signals = data[data['Position'] == -1]
+                    fig.add_trace(go.Scatter(x=buy_signals.index, y=buy_signals['Close'], mode='markers', name='Señal de Compra', marker=dict(color='green', symbol='triangle-up', size=10)))
+                    fig.add_trace(go.Scatter(x=sell_signals.index, y=sell_signals['Close'], mode='markers', name='Señal de Venta', marker=dict(color='red', symbol='triangle-down', size=10)))
+                    
+                    fig.update_layout(title=f'{ticker} - {strategy_name}',
+                                      xaxis_title='Fecha',
+                                      yaxis_title='Precio',
+                                      legend_title='Leyenda',
+                                      template='plotly_dark')
+                    
+                    st.plotly_chart(fig, use_container_width=True)
+                except Exception as plot_error:
+                    st.error(f"Error al generar el gráfico para el ticker {ticker}: {plot_error}")
         
         except Exception as e:
             st.error(f"Ocurrió un error para el ticker {ticker}: {e}")
