@@ -28,6 +28,12 @@ def backtest_strategy(tickers, start_date, end_date, short_window, medium_window
     start_date = pd.Timestamp(start_date)
     end_date = pd.Timestamp(end_date)
     
+    strategy_explanations = {
+        'Cruce entre el precio y SMA 1': 'Señal de compra cuando el precio de cierre está por encima de la SMA1 y señal de venta cuando está por debajo.',
+        'Cruce entre SMA 1 y SMA 2': 'Señal de compra cuando la SMA1 está por encima de la SMA2 y señal de venta cuando está por debajo.',
+        'Cruce entre SMA 1, 2 y 3': 'Señal de compra cuando la SMA1 está por encima de la SMA2 y la SMA2 está por encima de la SMA3. Señal de venta cuando estas condiciones no se cumplen.'
+    }
+    
     for ticker in tickers:
         try:
             # Establecer la fecha de inicio extendida para el cálculo de SMAs
@@ -157,28 +163,36 @@ def backtest_strategy(tickers, start_date, end_date, short_window, medium_window
                 buf.seek(0)
                 st.image(buf, caption=f"Gráfico de {ticker} - {strategy_name}")
                 plt.close()
+                
+                # Mostrar explicación de la estrategia
+                explanation = strategy_explanations.get(strategy_name, "No hay explicación disponible.")
+                st.write(f"### Explicación de la Estrategia: {strategy_name}")
+                st.write(explanation)
         
         except Exception as e:
-            st.error(f"Ocurrió un error para el ticker {ticker}: {e}")
+            st.error(f"Error al procesar el ticker {ticker}: {e}")
     
-    return all_results
+    # Crear DataFrame de resultados
+    results_df = pd.DataFrame(all_results)
+    
+    # Mostrar tabla de resultados
+    st.write("### Resultados de la Estrategia")
+    st.dataframe(results_df)
 
-# Ejemplo de uso
-if __name__ == "__main__":
-    st.title("Prueba de Estrategia de Trading")
-    
-    tickers = st.text_input("Ingrese tickers (separados por comas):", "AAPL, MSFT").split(',')
-    tickers = [ticker.strip().upper() for ticker in tickers]
-    start_date = st.date_input("Fecha de Inicio", pd.to_datetime('2023-01-01'))
-    end_date = st.date_input("Fecha de Fin", datetime.today().date())
-    short_window = st.slider("Ventana Corta", 1, 60, 20)
-    medium_window = st.slider("Ventana Media", 1, 100, 50)
-    long_window = st.slider("Ventana Larga", 1, 200, 100)
-    start_with_position = st.checkbox("Empezar con Posición", value=False)
-    
-    if st.button("Ejecutar Estrategia"):
-        results = backtest_strategy(tickers, start_date, end_date, short_window, medium_window, long_window, start_with_position)
-        if results:
-            df_results = pd.DataFrame(results)
-            st.write("Resultados de la Estrategia de Trading:")
-            st.dataframe(df_results)
+# Configuración de la aplicación de Streamlit
+st.title("Backtest de Estrategias de Inversión")
+st.write("Selecciona los tickers, fechas y parámetros para el backtest de las estrategias de inversión.")
+
+# Entrada de usuarios
+tickers_input = st.text_input("Ingresa los tickers separados por comas", "MSFT, AAPL, TSLA")
+tickers = [ticker.strip().upper() for ticker in tickers_input.split(',')]
+
+start_date = st.date_input("Fecha de inicio", value=datetime(2023, 1, 1))
+end_date = st.date_input("Fecha de fin", value=datetime(2023, 12, 31))
+short_window = st.slider("Periodo de SMA 1", min_value=1, max_value=50, value=20)
+medium_window = st.slider("Periodo de SMA 2", min_value=1, max_value=50, value=50)
+long_window = st.slider("Periodo de SMA 3", min_value=1, max_value=50, value=200)
+start_with_position = st.checkbox("Empezar con posición", value=True)
+
+if st.button("Ejecutar Backtest"):
+    backtest_strategy(tickers, start_date, end_date, short_window, medium_window, long_window, start_with_position)
