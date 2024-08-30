@@ -189,9 +189,9 @@ tickers = [ticker.strip().upper() for ticker in tickers_input.split(',')]
 
 start_date = st.date_input("Fecha de inicio", value=datetime(2023, 1, 1), min_value=datetime(1980, 1, 1), max_value=datetime(2024, 8, 31))
 end_date = st.date_input("Fecha de fin", value=datetime.today())
-short_window = st.slider("Periodo de SMA 1", min_value=1, max_value=50, value=20)
-medium_window = st.slider("Periodo de SMA 2", min_value=1, max_value=50, value=50)
-long_window = st.slider("Periodo de SMA 3", min_value=1, max_value=50, value=200)
+short_window = st.slider("Periodo de SMA 1", min_value=1, max_value=60, value=20)
+medium_window = st.slider("Periodo de SMA 2", min_value=1, max_value=100, value=50)
+long_window = st.slider("Periodo de SMA 3", min_value=1, max_value=200, value=200)
 start_with_position = st.checkbox("Empezar con posición", value=True)
 
 if st.button("Ejecutar Backtest"):
