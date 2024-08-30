@@ -75,6 +75,9 @@ def backtest_strategy(tickers, start_date, end_date, short_window, medium_window
                 
                 # Rastrear operaciones basadas en señales
                 for i in range(1, len(data_filtered)):
+                    if data_filtered.index[i] < start_date or data_filtered.index[i] > end_date:
+                        continue
+                    
                     if data_filtered['Position'].iloc[i] == 1 and current_position == 0:  # Señal de compra
                         entry_price = data_filtered['Close'].iloc[i]
                         current_position = 1
@@ -166,7 +169,7 @@ if __name__ == "__main__":
     end_date = st.date_input("Fecha de Fin", datetime.today().date())
     short_window = st.slider("Ventana Corta", 1, 60, 20)
     medium_window = st.slider("Ventana Media", 1, 100, 50)
-    long_window = st.slider("Ventana Larga", 1, 200, 200)
+    long_window = st.slider("Ventana Larga", 1, 200, 100)
     start_with_position = st.checkbox("Empezar con Posición", value=False)
     
     if st.button("Ejecutar Estrategia"):
